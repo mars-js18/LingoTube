@@ -17,6 +17,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Librería para el Confeti estilo Duolingo -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -34,14 +36,14 @@
                         duogoldDark: '#e5b400',
                         duogray: '#37464f',
                         duotext: '#afbac0',
-                        // Colores para el planificador
-                        planMonday: '#8b5cf6', // Violeta
-                        planFriday: '#ec4899', // Rosa
-                        planSaturday: '#06b6d4', // Cian
-                        planSunday: '#10b981'  // Esmeralda
+                        planMonday: '#8b5cf6',
+                        planFriday: '#ec4899',
+                        planSaturday: '#06b6d4',
+                        planSunday: '#10b981'
                     },
                     animation: {
                         'bounce-slow': 'bounce 2s infinite',
+                        'ping-once': 'ping 0.5s cubic-bezier(0, 0, 0.2, 1) 1',
                     }
                 }
             }
@@ -66,7 +68,6 @@
         .path-node { position: relative; z-index: 10; }
         .node-connector { position: absolute; width: 4px; z-index: 1; }
 
-        /* Estilos para el panel de rutina expandible */
         .routine-panel {
             transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
             max-height: 0;
@@ -74,7 +75,7 @@
             overflow: hidden;
         }
         .routine-panel.open {
-            max-height: 1000px; /* Ajustar según sea necesario */
+            max-height: 1000px;
             opacity: 1;
         }
     </style>
@@ -117,8 +118,18 @@
             advanced: 'PLAz9gX__ElWrCO8O3zRRMOwj2Bk5QtXTx'
         };
         const TOTAL_CLASSES = 195;
-        const CLASS_DURATION = 50; // minutos
-        const REVIEW_DURATION = 20; // minutos
+        const CLASS_DURATION = 60; // Minutos aprox por clase
+        const REVIEW_DURATION = 18; // Ajustado a 18 minutos
+
+        const MOTIVATIONAL_QUOTES = [
+            "La práctica distribuida (Spaced Repetition) mejora la retención a largo plazo en un 200% comparado con el estudio masivo. (Ebbinghaus)",
+            "El aprendizaje intercalado obliga al cerebro a discriminar patrones, aumentando la fluidez real en un 43%. (Rohrer, 2012)",
+            "Dormir después de aprender consolida las memorias y fortalece las conexiones sinápticas del nuevo vocabulario. (Stickgold, 2005)",
+            "Cometer errores durante la práctica activa señala al cerebro qué circuitos neuronales debe reforzar. ¡Equivócate sin miedo! (Metcalfe, 2017)",
+            "El 'Efecto de Generación' demuestra que recordar activamente una palabra fortalece la memoria mucho más que solo leerla pasivamente. (Slamecka & Graf, 1978)",
+            "Tu cerebro consume el 20% de tu energía. Sentir cansancio cognitivo tras una sesión de evocación significa que estás creando nuevas redes neuronales.",
+            "La fluidez no es saber muchas palabras, sino automatizar el acceso a las que ya sabes mediante la mielinización de las vías neuronales."
+        ];
 
         // --- DATOS DEL PLAN DE ESTUDIO ---
         const STUDY_PLAN = {
@@ -171,8 +182,6 @@
             const [data, setData] = React.useState(() => {
                 const saved = localStorage.getItem('lingoTubeData');
                 let parsed = saved ? JSON.parse(saved) : null;
-                
-                // Estructura por defecto y migración
                 if (!parsed) {
                     parsed = {
                         streak: 0,
@@ -181,9 +190,6 @@
                         reviews: { beginner: [], intermediate: [], advanced: [] },
                         notes: {}
                     };
-                } else if (!parsed.reviews) {
-                    // Si ya tenía datos, pero no el nuevo sistema de repasos, se lo agregamos
-                    parsed.reviews = { beginner: [], intermediate: [], advanced: [] };
                 }
                 return parsed;
             });
@@ -192,21 +198,26 @@
                 localStorage.setItem('lingoTubeData', JSON.stringify(data));
             }, [data]);
 
-            // ESTADO PARA LOS CSVs
+            // ESTADO PARA LOS 6 CSVs (Clases y Repasos)
             const [courseData, setCourseData] = React.useState(() => {
                 const saved = localStorage.getItem('lingoTubeCourseData');
-                return saved ? JSON.parse(saved) : { beginner: [], intermediate: [], advanced: [] };
+                const defaultData = { 
+                    beginner: [], intermediate: [], advanced: [],
+                    beginnerReview: [], intermediateReview: [], advancedReview: []
+                };
+                return saved ? { ...defaultData, ...JSON.parse(saved) } : defaultData;
             });
 
             React.useEffect(() => {
                 localStorage.setItem('lingoTubeCourseData', JSON.stringify(courseData));
             }, [courseData]);
 
-            const updateCourseData = (level, levelData) => {
-                setCourseData(prev => ({ ...prev, [level]: levelData }));
+            const updateCourseData = (levelKey, levelData) => {
+                setCourseData(prev => ({ ...prev, [levelKey]: levelData }));
             };
 
-            // Lógica de Racha
+            const [streakIncreased, setStreakIncreased] = React.useState(false);
+
             React.useEffect(() => {
                 const today = new Date().toDateString();
                 if (data.lastActiveDate !== today) {
@@ -215,7 +226,8 @@
                         const yesterday = new Date();
                         yesterday.setDate(yesterday.getDate() - 1);
                         if (data.lastActiveDate !== yesterday.toDateString()) {
-                            newStreak = 0;
+                            newStreak = 0; // Se perdió la racha
+                            setData(prev => ({...prev, streak: newStreak}));
                         }
                     }
                 }
@@ -228,6 +240,13 @@
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     const keptStreak = prev.lastActiveDate === yesterday.toDateString();
+                    
+                    if (keptStreak || prev.streak === 0) {
+                        setStreakIncreased(true);
+                        setTimeout(() => setStreakIncreased(false), 1500);
+                        confetti({ particleCount: 50, spread: 60, origin: { y: 0.1 }, colors: ['#ffc800', '#ff4b4b'] });
+                    }
+
                     return {
                         ...prev,
                         streak: keptStreak ? prev.streak + 1 : 1,
@@ -236,9 +255,7 @@
                 });
             };
 
-            // NUEVA Lógica de Progreso "En Cadena"
             const toggleProgress = (level, classId, type) => {
-                // type puede ser 'completed' (clase normal) o 'reviews' (repaso dorado)
                 updateActivity();
                 
                 setData(prev => {
@@ -246,12 +263,10 @@
                     const newState = { ...prev };
                     
                     if (isDone) {
-                        // DESMARCAR: Borra esta clase/repaso y TODAS LAS SIGUIENTES (> classId)
                         newState[type] = {
                             ...prev[type],
                             [level]: prev[type][level].filter(id => id < classId)
                         };
-                        // Si desmarcamos una clase, debemos borrar también todos sus repasos futuros
                         if (type === 'completed') {
                             newState.reviews = {
                                 ...prev.reviews,
@@ -259,13 +274,11 @@
                             };
                         }
                     } else {
-                        // MARCAR: Añade esta clase/repaso y TODAS LAS ANTERIORES (< classId)
                         const newIds = Array.from({ length: classId }, (_, i) => i + 1);
                         newState[type] = {
                             ...prev[type],
                             [level]: Array.from(new Set([...prev[type][level], ...newIds]))
                         };
-                        // Si marcamos un repaso, por lógica también debimos haber visto las clases anteriores
                         if (type === 'reviews') {
                             newState.completed = {
                                 ...prev.completed,
@@ -285,7 +298,7 @@
                 }));
             };
 
-            return { data, toggleProgress, saveNote, updateActivity, courseData, updateCourseData };
+            return { data, toggleProgress, saveNote, updateActivity, courseData, updateCourseData, streakIncreased };
         }
 
         // --- COMPONENTES ---
@@ -301,19 +314,22 @@
         };
 
         const App = () => {
-            const { data, toggleProgress, saveNote, courseData, updateCourseData } = useAppStore();
+            const { data, toggleProgress, saveNote, courseData, updateCourseData, streakIncreased } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState('beginner');
             const [selectedClass, setSelectedClass] = React.useState(null);
             const [isRoutineOpen, setIsRoutineOpen] = React.useState(false);
+            const [dailyQuote, setDailyQuote] = React.useState('');
 
-            // Obtener el día de la semana actual (0 = Domingo, 1 = Lunes, ...)
+            React.useEffect(() => {
+                setDailyQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
+            }, []);
+
             const currentDay = new Date().getDay();
             const currentPlan = STUDY_PLAN[currentDay];
             const planDetails = PLAN_DETAILS[currentPlan.type];
 
             const renderHeader = () => {
-                // Total calculado solo para el icono del check azul
                 const totalClassesDone = data.completed.beginner.length + data.completed.intermediate.length + data.completed.advanced.length;
                 
                 return (
@@ -323,7 +339,7 @@
                             LingoTube
                         </div>
                         <div className="flex gap-4 font-bold text-lg">
-                            <div className="flex items-center gap-1 text-orange-400">
+                            <div className={`flex items-center gap-1 text-orange-400 transition-transform ${streakIncreased ? 'scale-125 animate-ping-once' : ''}`}>
                                 <Icon name="Flame" color="currentColor" />
                                 <span>{data.streak}</span>
                             </div>
@@ -338,8 +354,7 @@
 
             const renderRoutinePanel = () => {
                 return (
-                    <div className="mb-8">
-                        {/* Tarjeta Resumen del Día */}
+                    <div className="mb-8 mt-2">
                         <div 
                             className={`rounded-2xl p-4 shadow-lg border-b-4 cursor-pointer transition-all ${currentPlan.color} ${isRoutineOpen ? 'border-b-0 mb-1 rounded-b-none' : 'border-black/30'}`}
                             onClick={() => setIsRoutineOpen(!isRoutineOpen)}
@@ -360,7 +375,6 @@
                             </div>
                         </div>
 
-                        {/* Detalles Expandibles */}
                         <div className={`bg-surface rounded-b-2xl border-2 border-t-0 border-surface shadow-lg px-4 ${isRoutineOpen ? 'py-4' : 'py-0 h-0 border-transparent overflow-hidden'} transition-all duration-300 ease-in-out`}>
                             {isRoutineOpen && (
                                 <div className="animate-[slideUp_0.3s_ease-out]">
@@ -387,19 +401,16 @@
                 const completedInLevel = data.completed[currentLevel] || [];
                 const reviewsInLevel = data.reviews[currentLevel] || [];
                 
-                // ¿Cuál es el siguiente paso sugerido? (Ya sea clase nueva o repaso pendiente)
-                let nextUp = classes.find(c => !completedInLevel.includes(c)); // Siguiente clase no vista
+                let nextUp = classes.find(c => !completedInLevel.includes(c));
                 if (!nextUp) {
-                    nextUp = classes.find(c => !reviewsInLevel.includes(c)) || TOTAL_CLASSES; // O el siguiente repaso
+                    nextUp = classes.find(c => !reviewsInLevel.includes(c)) || TOTAL_CLASSES;
                 }
 
                 return (
                     <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
                         
-                        {/* PANEL DE RUTINA DIARIA */}
                         {renderRoutinePanel()}
 
-                        {/* Selector de nivel */}
                         <div className="flex bg-surface rounded-2xl p-1 mb-8 shadow-lg">
                             {['beginner', 'intermediate', 'advanced'].map(lvl => (
                                 <button 
@@ -412,7 +423,6 @@
                             ))}
                         </div>
 
-                        {/* Progreso del nivel */}
                         <div className="mb-8 flex items-center justify-between bg-surface p-4 rounded-2xl">
                             <div>
                                 <h2 className="font-bold text-lg">Progreso de Nivel</h2>
@@ -425,7 +435,6 @@
                             </div>
                         </div>
 
-                        {/* Camino (Path) */}
                         <div className="flex flex-col items-center relative">
                             {classes.map((cls, index) => {
                                 const isClassCompleted = completedInLevel.includes(cls);
@@ -435,7 +444,6 @@
                                 
                                 const offset = getOffset(index);
                                 
-                                // Determinar la lógica visual exacta del nodo y la conexión
                                 let bgColor = 'bg-surface';
                                 let borderColor = 'border-duogray';
                                 let iconColor = '#afbac0';
@@ -445,19 +453,15 @@
                                 if (isReviewCompleted) {
                                     bgColor = 'bg-duogold'; borderColor = 'border-duogoldDark'; iconColor = '#ffffff'; iconName = "Check";
                                 } else if (isClassCompleted) {
-                                    // Clase completada pero falta repaso
                                     if (isCurrent) {
-                                        // Es el siguiente repaso!
                                         bgColor = 'bg-duogold'; borderColor = 'border-duogoldDark'; iconColor = '#ffffff';
                                         extraClasses = 'animate-bounce-slow shadow-[0_0_20px_rgba(255,200,0,0.5)]';
-                                        iconName = "RotateCw"; // Icono de repaso
+                                        iconName = "RotateCw";
                                     } else {
                                         bgColor = 'bg-duogreen'; borderColor = 'border-duogreenDark'; iconColor = '#ffffff'; iconName = "Check";
                                     }
                                 } else {
-                                    // Nada completado
                                     if (isCurrent) {
-                                        // Es la siguiente clase
                                         bgColor = 'bg-duogreen'; borderColor = 'border-duogreenDark'; iconColor = '#ffffff';
                                         extraClasses = 'animate-bounce-slow shadow-[0_0_20px_rgba(88,204,2,0.5)]';
                                     } else {
@@ -465,14 +469,12 @@
                                     }
                                 }
 
-                                // Color de la línea de conexión al siguiente nodo
                                 const nextClassCompleted = completedInLevel.includes(cls + 1);
                                 const nextReviewCompleted = reviewsInLevel.includes(cls + 1);
                                 const connectorBg = nextReviewCompleted ? 'bg-duogold' : nextClassCompleted ? 'bg-duogreen' : 'bg-surface';
 
                                 return (
                                     <div key={cls} className="relative flex flex-col items-center mb-6">
-                                        {/* Línea conectora */}
                                         {index < classes.length - 1 && (
                                             <div 
                                                 className={`absolute w-3 h-16 -bottom-10 -z-10 transition-colors duration-500 ${connectorBg}`}
@@ -492,7 +494,6 @@
                                             <Icon name={iconName} color={iconColor} size={28} className={iconName === 'Play' ? 'ml-1' : ''} />
                                         </button>
                                         
-                                        {/* Corona o indicador de estado */}
                                         <div className="absolute top-12 font-bold text-xs bg-darker px-2 py-1 rounded-full border border-surface shadow-sm" style={{ transform: `translateX(${offset}px)` }}>
                                             Clase {cls}
                                         </div>
@@ -500,6 +501,18 @@
                                 );
                             })}
                         </div>
+
+                        {/* Tarjeta de Motivación */}
+                        <div className="mt-8 bg-surface border-2 border-duogray p-5 rounded-2xl flex items-start gap-4 shadow-lg">
+                            <div className="bg-duoblue/20 p-3 rounded-full shrink-0">
+                                <Icon name="Brain" color="#1cb0f6" size={28} />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-duoblue mb-1">Ciencia del Aprendizaje</h4>
+                                <p className="text-sm text-duotext italic leading-relaxed">"{dailyQuote}"</p>
+                            </div>
+                        </div>
+
                     </div>
                 );
             };
@@ -517,7 +530,6 @@
 
                 const totalClasses = TOTAL_CLASSES * 3;
                 
-                // Mates de tiempo
                 const minsDone = (totalClassesDone * CLASS_DURATION) + (totalReviewsDone * REVIEW_DURATION);
                 const hoursDone = (minsDone / 60).toFixed(1);
                 
@@ -565,9 +577,7 @@
                                         <span className="text-duotext">{l.done}/{TOTAL_CLASSES}</span>
                                     </div>
                                     <div className="h-3 w-full bg-darker rounded-full overflow-hidden relative">
-                                        {/* Barra verde de clases */}
                                         <div className="absolute top-0 left-0 h-full bg-duogreen transition-all duration-500" style={{ width: `${(l.done/TOTAL_CLASSES)*100}%` }}></div>
-                                        {/* Barra dorada de repasos superpuesta */}
                                         <div className="absolute top-0 left-0 h-full bg-duogold transition-all duration-500" style={{ width: `${(l.rev/TOTAL_CLASSES)*100}%` }}></div>
                                     </div>
                                 </div>
@@ -577,7 +587,6 @@
                 );
             };
 
-            // LÓGICA DE PARSEO DE CSV (Extraída para reusar)
             const parseCSVText = (text) => {
                 const lines = text.split('\n');
                 const parsedData = [];
@@ -600,12 +609,15 @@
                 return parsedData;
             };
 
-            // AUTO-CARGA DESDE GITHUB PAGES (Se ejecuta al abrir la app)
+            // AUTO-CARGA DESDE GITHUB PAGES (Añadidos los archivos de Review)
+            const CSV_LEVELS = [
+                'beginner', 'intermediate', 'advanced', 
+                'beginnerReview', 'intermediateReview', 'advancedReview'
+            ];
+
             React.useEffect(() => {
                 const autoLoad = async () => {
-                    const levels = ['beginner', 'intermediate', 'advanced'];
-                    for (const lvl of levels) {
-                        // Solo intenta descargarlos si el usuario aún no tiene los datos en su celular
+                    for (const lvl of CSV_LEVELS) {
                         if (!courseData[lvl] || courseData[lvl].length === 0) {
                             try {
                                 const response = await fetch(`./${lvl}.csv`);
@@ -622,11 +634,9 @@
                 autoLoad();
             }, []);
 
-            // BOTÓN MANUAL PARA FORZAR SINCRONIZACIÓN DESDE EL SERVIDOR
             const syncFromServer = async () => {
-                const levels = ['beginner', 'intermediate', 'advanced'];
                 let loadedAny = false;
-                for (const lvl of levels) {
+                for (const lvl of CSV_LEVELS) {
                     try {
                         const response = await fetch(`./${lvl}.csv`);
                         if (response.ok) {
@@ -640,13 +650,13 @@
                     } catch (err) {}
                 }
                 if(loadedAny) alert("¡Datos sincronizados con éxito desde GitHub!");
-                else alert("No se encontraron los archivos .csv. Asegúrate de llamarlos beginner.csv, intermediate.csv y advanced.csv y subirlos a GitHub.");
+                else alert("No se encontraron algunos archivos .csv.");
             };
 
-            const handleFileUpload = (level, file) => {
+            const handleFileUpload = (levelKey, file) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    updateCourseData(level, parseCSVText(e.target.result));
+                    updateCourseData(levelKey, parseCSVText(e.target.result));
                 };
                 reader.readAsText(file);
             };
@@ -666,31 +676,49 @@
                             </button>
                         </div>
                         <p className="text-sm text-duotext mb-6">
-                            La app busca automáticamente los archivos en el servidor de GitHub. Si hubo una actualización, presiona "Sync" para refrescarlos.
+                            Sube tus archivos CSV manualmente o usa el botón Sync si ya están en GitHub Pages.
                         </p>
                         
+                        {/* Renderizar Inputs de Archivos Agrupados */}
                         {['beginner', 'intermediate', 'advanced'].map(lvl => {
-                            const label = lvl === 'beginner' ? 'Principiante' : lvl === 'intermediate' ? 'Intermedio' : 'Avanzado';
-                            const isLoaded = courseData[lvl] && courseData[lvl].length > 0;
+                            const nameMap = { beginner: 'Principiante', intermediate: 'Intermedio', advanced: 'Avanzado' };
+                            const classKey = lvl;
+                            const reviewKey = `${lvl}Review`;
                             
+                            const classesLoaded = courseData[classKey] && courseData[classKey].length > 0;
+                            const reviewsLoaded = courseData[reviewKey] && courseData[reviewKey].length > 0;
+
                             return (
-                                <div key={lvl} className="mb-4 last:mb-0 bg-darker p-4 rounded-xl border border-surface">
-                                    <label className="flex items-center justify-between mb-3">
-                                        <span className="font-bold text-sm">{label}</span>
-                                        {isLoaded ? (
-                                            <span className="text-xs font-bold text-duogreen flex items-center gap-1"><Icon name="Check" size={14}/> {courseData[lvl].length} listas</span>
-                                        ) : (
-                                            <span className="text-xs font-bold text-orange-400">Falta subir</span>
-                                        )}
-                                    </label>
-                                    <input 
-                                        type="file" 
-                                        accept=".csv"
-                                        onChange={(e) => {
-                                            if(e.target.files[0]) handleFileUpload(lvl, e.target.files[0]);
-                                        }}
-                                        className="block w-full text-xs text-duotext file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-duoblue/20 file:text-duoblue hover:file:bg-duoblue/30 cursor-pointer"
-                                    />
+                                <div key={lvl} className="mb-6 bg-darker p-4 rounded-xl border border-surface">
+                                    <h3 className="font-bold text-md mb-3 text-white border-b border-surface pb-2">{nameMap[lvl]}</h3>
+                                    
+                                    {/* Upload Clases */}
+                                    <div className="mb-4">
+                                        <label className="flex items-center justify-between mb-2">
+                                            <span className="font-bold text-sm text-duotext">Clases Originales</span>
+                                            {classesLoaded ? (
+                                                <span className="text-xs font-bold text-duogreen flex items-center gap-1"><Icon name="Check" size={14}/> {courseData[classKey].length} cargadas</span>
+                                            ) : (
+                                                <span className="text-xs font-bold text-orange-400">Falta subir</span>
+                                            )}
+                                        </label>
+                                        <input type="file" accept=".csv" onChange={(e) => { if(e.target.files[0]) handleFileUpload(classKey, e.target.files[0]); }}
+                                            className="block w-full text-xs text-duotext file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-duoblue/20 file:text-duoblue hover:file:bg-duoblue/30 cursor-pointer" />
+                                    </div>
+
+                                    {/* Upload Repasos */}
+                                    <div>
+                                        <label className="flex items-center justify-between mb-2">
+                                            <span className="font-bold text-sm text-duotext">Repasos de 18m</span>
+                                            {reviewsLoaded ? (
+                                                <span className="text-xs font-bold text-duogold flex items-center gap-1"><Icon name="Check" size={14}/> {courseData[reviewKey].length} cargados</span>
+                                            ) : (
+                                                <span className="text-xs font-bold text-orange-400">Falta subir</span>
+                                            )}
+                                        </label>
+                                        <input type="file" accept=".csv" onChange={(e) => { if(e.target.files[0]) handleFileUpload(reviewKey, e.target.files[0]); }}
+                                            className="block w-full text-xs text-duotext file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-duogold/20 file:text-duogold hover:file:bg-duogold/30 cursor-pointer" />
+                                    </div>
                                 </div>
                             );
                         })}
@@ -717,7 +745,24 @@
                 </nav>
             );
 
-            // --- MODAL DE CLASE ---
+            // --- ANIMACIÓN AL COMPLETAR ---
+            const handleProgressWithConfetti = (level, classId, type) => {
+                const isAlreadyDone = data[type][level].includes(classId);
+                
+                // Solo si lo estamos marcando como nuevo
+                if (!isAlreadyDone) {
+                    if (type === 'completed') {
+                        // Confeti verde
+                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#58cc02', '#ffffff'] });
+                    } else if (type === 'reviews') {
+                        // Confeti dorado
+                        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#ffc800', '#ffffff'] });
+                    }
+                }
+                
+                toggleProgress(level, classId, type);
+            };
+
             const renderModal = () => {
                 if (!selectedClass) return null;
 
@@ -726,11 +771,16 @@
                 const isReviewCompleted = data.reviews[currentLevel].includes(selectedClass);
                 const note = data.notes[classKey] || '';
 
+                // Obtener Info de Clase
                 const levelCourses = courseData[currentLevel] || [];
                 const courseInfo = levelCourses.find(c => c.id === selectedClass);
-                
-                const ytLink = courseInfo && courseInfo.videoUrl ? courseInfo.videoUrl : `https://www.youtube.com/watch?list=${PLAYLISTS[currentLevel]}&index=${selectedClass}`;
+                const ytClassLink = courseInfo && courseInfo.videoUrl ? courseInfo.videoUrl : `https://www.youtube.com/watch?list=${PLAYLISTS[currentLevel]}&index=${selectedClass}`;
                 const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${selectedClass}`;
+
+                // Obtener Info de Repaso (Si el CSV fue cargado)
+                const reviewCourses = courseData[`${currentLevel}Review`] || [];
+                const reviewInfo = reviewCourses.find(c => c.id === selectedClass);
+                const ytReviewLink = reviewInfo && reviewInfo.videoUrl ? reviewInfo.videoUrl : null; // Solo se muestra si hay link real
 
                 return (
                     <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4">
@@ -747,20 +797,33 @@
                                 </button>
                             </div>
 
-                            <a 
-                                href={ytLink} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="duo-btn w-full bg-[#ff0000] hover:bg-[#cc0000] text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 border-[#b30000] text-lg mb-2"
-                            >
-                                <Icon name="Youtube" />
-                                Ver Video Completo
-                            </a>
+                            <div className="flex gap-2 mb-2">
+                                <a 
+                                    href={ytClassLink} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="duo-btn flex-1 bg-[#ff0000] hover:bg-[#cc0000] text-white font-bold py-3 rounded-2xl flex flex-col items-center justify-center gap-1 border-[#b30000] text-sm"
+                                >
+                                    <Icon name="Youtube" size={20} />
+                                    <span>Ver Clase (60m)</span>
+                                </a>
+
+                                {ytReviewLink && (
+                                    <a 
+                                        href={ytReviewLink} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="duo-btn flex-1 bg-duogold hover:bg-duogoldDark text-white font-bold py-3 rounded-2xl flex flex-col items-center justify-center gap-1 border-[#cca000] text-sm"
+                                    >
+                                        <Icon name="PlayCircle" size={20} />
+                                        <span>Ver Repaso (18m)</span>
+                                    </a>
+                                )}
+                            </div>
 
                             <div className="grid grid-cols-1 gap-3">
-                                {/* Botón de Completar Clase */}
                                 <button 
-                                    onClick={() => toggleProgress(currentLevel, selectedClass, 'completed')}
+                                    onClick={() => handleProgressWithConfetti(currentLevel, selectedClass, 'completed')}
                                     className={`duo-btn w-full font-bold py-3 px-2 rounded-2xl flex items-center justify-center gap-2 text-[15px] border-b-4 ${
                                         isClassCompleted 
                                         ? 'bg-surface text-white border-duogray' 
@@ -771,9 +834,8 @@
                                     {isClassCompleted ? 'Desmarcar Clase' : 'Completar Clase (y previas)'}
                                 </button>
 
-                                {/* Botón de Completar Repaso */}
                                 <button 
-                                    onClick={() => toggleProgress(currentLevel, selectedClass, 'reviews')}
+                                    onClick={() => handleProgressWithConfetti(currentLevel, selectedClass, 'reviews')}
                                     className={`duo-btn w-full font-bold py-3 px-2 rounded-2xl flex items-center justify-center gap-2 text-[15px] border-b-4 ${
                                         isReviewCompleted 
                                         ? 'bg-surface text-white border-duogray' 
@@ -803,7 +865,7 @@
             };
 
             return (
-                <div className="min-h-screen relative font-sans">
+                <div className="min-h-screen relative font-sans overflow-x-hidden">
                     {renderHeader()}
                     <main>
                         {currentTab === 'learn' && renderLearnTab()}
