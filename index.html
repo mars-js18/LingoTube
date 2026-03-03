@@ -53,7 +53,7 @@
         }
     </script>
     <style>
-        body { background-color: #111b21; color: white; -webkit-tap-highlight-color: transparent; }
+        body { background-color: #111b21; color: white; -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #111b21; }
         ::-webkit-scrollbar-thumb { background: #37464f; border-radius: 10px; }
@@ -131,8 +131,8 @@
             advanced: 'PLAz9gX__ElWrCO8O3zRRMOwj2Bk5QtXTx'
         };
         const TOTAL_CLASSES = 195;
-        const CLASS_DURATION = 60; // Minutos aprox por clase
-        const REVIEW_DURATION = 18; // Ajustado a 18 minutos
+        const CLASS_DURATION = 60;
+        const REVIEW_DURATION = 18;
 
         const MOTIVATIONAL_QUOTES = [
             "La práctica distribuida (Spaced Repetition) mejora la retención a largo plazo en un 200% comparado con el estudio masivo. (Ebbinghaus)",
@@ -211,7 +211,6 @@
                 localStorage.setItem('lingoTubeData', JSON.stringify(data));
             }, [data]);
 
-            // ESTADO PARA LOS 6 CSVs (Clases y Repasos)
             const [courseData, setCourseData] = React.useState(() => {
                 const saved = localStorage.getItem('lingoTubeCourseData');
                 const defaultData = { 
@@ -239,7 +238,7 @@
                         const yesterday = new Date();
                         yesterday.setDate(yesterday.getDate() - 1);
                         if (data.lastActiveDate !== yesterday.toDateString()) {
-                            newStreak = 0; // Se perdió la racha
+                            newStreak = 0; 
                             setData(prev => ({...prev, streak: newStreak}));
                         }
                     }
@@ -314,8 +313,6 @@
             return { data, toggleProgress, saveNote, updateActivity, courseData, updateCourseData, streakIncreased };
         }
 
-        // --- COMPONENTES ---
-
         const getOffset = (index) => {
             const cycle = index % 8;
             if (cycle === 0 || cycle === 4) return 0;
@@ -335,11 +332,24 @@
             const [isStreakModalOpen, setIsStreakModalOpen] = React.useState(false);
             const [dailyQuote, setDailyQuote] = React.useState('');
             const [streakQuote, setStreakQuote] = React.useState('');
+            
+            // Referencia para el auto-scroll
+            const activeNodeRef = React.useRef(null);
 
             React.useEffect(() => {
                 setDailyQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
                 setStreakQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
             }, []);
+
+            // Efecto de Auto-Scroll al cambiar de nivel o regresar a la pestaña de aprender
+            React.useEffect(() => {
+                if (currentTab === 'learn' && activeNodeRef.current) {
+                    // Timeout corto para permitir que React renderice los elementos antes de mover la ventana
+                    setTimeout(() => {
+                        activeNodeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 300);
+                }
+            }, [currentTab, currentLevel]);
 
             const currentDay = new Date().getDay();
             const currentPlan = STUDY_PLAN[currentDay];
@@ -375,7 +385,7 @@
                 if (!isStreakModalOpen) return null;
 
                 const daysOfWeek = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-                const todayIdx = currentDay === 0 ? 6 : currentDay - 1; // 0=Lun, 6=Dom
+                const todayIdx = currentDay === 0 ? 6 : currentDay - 1;
                 const { streak } = data;
 
                 return (
@@ -395,11 +405,9 @@
                         <h2 className="text-4xl font-black text-white mt-6 mb-2">{streak} {streak === 1 ? 'Día' : 'Días'}</h2>
                         <p className="text-lg font-bold text-orange-400 mb-10 tracking-wide uppercase">¡Racha actual!</p>
 
-                        {/* Semana Visual */}
                         <div className="bg-surface border-2 border-duogray rounded-3xl p-6 w-full max-w-sm mb-8 shadow-2xl">
                             <div className="flex justify-between items-center w-full">
                                 {daysOfWeek.map((dayLabel, idx) => {
-                                    // Logica para iluminar dias de la semana segun la racha
                                     const isLit = streak >= 7 || 
                                                   (idx <= todayIdx && idx > todayIdx - streak) || 
                                                   (todayIdx - streak < 0 && idx >= 7 + (todayIdx - streak));
@@ -421,7 +429,6 @@
                             </div>
                         </div>
 
-                        {/* Frase en el modal de Racha */}
                         <div className="max-w-sm text-center px-4 mb-10">
                             <p className="text-duotext italic text-sm leading-relaxed">"{streakQuote}"</p>
                         </div>
@@ -487,7 +494,7 @@
                 
                 let nextUp = classes.find(c => !completedInLevel.includes(c));
                 if (!nextUp) {
-                    nextUp = classes.find(c => !reviewsInLevel.includes(c)) || TOTAL_CLASSES + 1; // +1 para el Trofeo
+                    nextUp = classes.find(c => !reviewsInLevel.includes(c)) || TOTAL_CLASSES + 1;
                 }
 
                 return (
@@ -559,7 +566,6 @@
 
                                 return (
                                     <div key={cls} className="relative flex flex-col items-center mb-6">
-                                        {/* Conector normal entre clases */}
                                         <div 
                                             className={`absolute w-3 h-16 -bottom-10 -z-10 transition-colors duration-500 ${connectorBg}`}
                                             style={{
@@ -570,6 +576,7 @@
                                         />
 
                                         <button 
+                                            ref={isCurrent ? activeNodeRef : null}
                                             onClick={() => setSelectedClass(cls)}
                                             className={`path-node w-16 h-16 rounded-full border-b-4 flex items-center justify-center transition-all ${bgColor} ${borderColor} ${extraClasses}`}
                                             style={{ transform: `translateX(${offset}px)` }}
@@ -588,6 +595,7 @@
                             {(() => {
                                 const isSilver = completedInLevel.length === TOTAL_CLASSES;
                                 const isGold = reviewsInLevel.length === TOTAL_CLASSES;
+                                const isCurrentTrophy = nextUp === TOTAL_CLASSES + 1;
                                 const trophyOffset = getOffset(TOTAL_CLASSES);
                                 
                                 let trophyBg = 'bg-surface';
@@ -607,7 +615,10 @@
                                 }
 
                                 return (
-                                    <div className="relative flex flex-col items-center mt-12 mb-10">
+                                    <div 
+                                        ref={isCurrentTrophy ? activeNodeRef : null}
+                                        className="relative flex flex-col items-center mt-12 mb-10"
+                                    >
                                         <div 
                                             className={`path-node w-24 h-24 rounded-full border-b-[6px] flex items-center justify-center transition-all ${trophyBg} ${trophyBorder} ${trophyAnimate}`}
                                             style={{ transform: `translateX(${trophyOffset}px)` }}
@@ -626,7 +637,6 @@
                             })()}
                         </div>
 
-                        {/* Tarjeta de Motivación */}
                         <div className="mt-8 bg-surface border-2 border-duogray p-5 rounded-2xl flex items-start gap-4 shadow-lg">
                             <div className="bg-duoblue/20 p-3 rounded-full shrink-0">
                                 <Icon name="Brain" color="#1cb0f6" size={28} />
@@ -733,7 +743,6 @@
                 return parsedData;
             };
 
-            // AUTO-CARGA DESDE GITHUB PAGES (Añadidos los archivos de Review)
             const CSV_LEVELS = [
                 'beginner', 'intermediate', 'advanced', 
                 'beginnerReview', 'intermediateReview', 'advancedReview'
@@ -803,7 +812,6 @@
                             Sube tus archivos CSV manualmente o usa el botón Sync si ya están en GitHub Pages.
                         </p>
                         
-                        {/* Renderizar Inputs de Archivos Agrupados */}
                         {['beginner', 'intermediate', 'advanced'].map(lvl => {
                             const nameMap = { beginner: 'Principiante', intermediate: 'Intermedio', advanced: 'Avanzado' };
                             const classKey = lvl;
@@ -816,7 +824,6 @@
                                 <div key={lvl} className="mb-6 bg-darker p-4 rounded-xl border border-surface">
                                     <h3 className="font-bold text-md mb-3 text-white border-b border-surface pb-2">{nameMap[lvl]}</h3>
                                     
-                                    {/* Upload Clases */}
                                     <div className="mb-4">
                                         <label className="flex items-center justify-between mb-2">
                                             <span className="font-bold text-sm text-duotext">Clases Originales</span>
@@ -830,7 +837,6 @@
                                             className="block w-full text-xs text-duotext file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-duoblue/20 file:text-duoblue hover:file:bg-duoblue/30 cursor-pointer" />
                                     </div>
 
-                                    {/* Upload Repasos */}
                                     <div>
                                         <label className="flex items-center justify-between mb-2">
                                             <span className="font-bold text-sm text-duotext">Repasos de 18m</span>
@@ -869,17 +875,13 @@
                 </nav>
             );
 
-            // --- ANIMACIÓN AL COMPLETAR ---
             const handleProgressWithConfetti = (level, classId, type) => {
                 const isAlreadyDone = data[type][level].includes(classId);
                 
-                // Solo si lo estamos marcando como nuevo
                 if (!isAlreadyDone) {
                     if (type === 'completed') {
-                        // Confeti verde
                         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#58cc02', '#ffffff'] });
                     } else if (type === 'reviews') {
-                        // Confeti dorado
                         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#ffc800', '#ffffff'] });
                     }
                 }
@@ -895,16 +897,14 @@
                 const isReviewCompleted = data.reviews[currentLevel].includes(selectedClass);
                 const note = data.notes[classKey] || '';
 
-                // Obtener Info de Clase
                 const levelCourses = courseData[currentLevel] || [];
                 const courseInfo = levelCourses.find(c => c.id === selectedClass);
                 const ytClassLink = courseInfo && courseInfo.videoUrl ? courseInfo.videoUrl : `https://www.youtube.com/watch?list=${PLAYLISTS[currentLevel]}&index=${selectedClass}`;
                 const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${selectedClass}`;
 
-                // Obtener Info de Repaso (Si el CSV fue cargado)
                 const reviewCourses = courseData[`${currentLevel}Review`] || [];
                 const reviewInfo = reviewCourses.find(c => c.id === selectedClass);
-                const ytReviewLink = reviewInfo && reviewInfo.videoUrl ? reviewInfo.videoUrl : null; // Solo se muestra si hay link real
+                const ytReviewLink = reviewInfo && reviewInfo.videoUrl ? reviewInfo.videoUrl : null; 
 
                 return (
                     <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4">
