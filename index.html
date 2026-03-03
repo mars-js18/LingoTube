@@ -33,7 +33,12 @@
                         duogold: '#ffc800',
                         duogoldDark: '#e5b400',
                         duogray: '#37464f',
-                        duotext: '#afbac0'
+                        duotext: '#afbac0',
+                        // Colores para el planificador
+                        planMonday: '#8b5cf6', // Violeta
+                        planFriday: '#ec4899', // Rosa
+                        planSaturday: '#06b6d4', // Cian
+                        planSunday: '#10b981'  // Esmeralda
                     },
                     animation: {
                         'bounce-slow': 'bounce 2s infinite',
@@ -60,6 +65,18 @@
         
         .path-node { position: relative; z-index: 10; }
         .node-connector { position: absolute; width: 4px; z-index: 1; }
+
+        /* Estilos para el panel de rutina expandible */
+        .routine-panel {
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+        }
+        .routine-panel.open {
+            max-height: 1000px; /* Ajustar según sea necesario */
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -102,6 +119,52 @@
         const TOTAL_CLASSES = 195;
         const CLASS_DURATION = 50; // minutos
         const REVIEW_DURATION = 20; // minutos
+
+        // --- DATOS DEL PLAN DE ESTUDIO ---
+        const STUDY_PLAN = {
+            1: { type: 'advance', name: 'Lunes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            2: { type: 'advance', name: 'Martes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            3: { type: 'advance', name: 'Miércoles de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            4: { type: 'advance', name: 'Jueves de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            5: { type: 'interference', name: 'Viernes de Interferencia', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'Shuffle' },
+            6: { type: 'consolidation', name: 'Sábado de Consolidación', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'Layers' },
+            0: { type: 'rest', name: 'Domingo de Descompresión', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Coffee' }
+        };
+
+        const PLAN_DETAILS = {
+            'advance': {
+                title: 'Días de Avance (Lunes a Jueves)',
+                description: 'Consumir un video completo (60 mins) secuencialmente para aumentar la fluidez base.',
+                phases: [
+                    { name: 'Fase 1: Repaso Activo (Mins 0-15)', desc: 'No ver pasivamente. Pausar al ver el estímulo, explicar en voz alta, reanudar para comprobar.' },
+                    { name: 'Fase 2: Consumo y Anclaje (Mins 15-60)', desc: 'Enfocarse en prosodia y entonación. No transcribir explicaciones. Usar Método Cornell modificado (preguntas al margen).' },
+                    { name: 'Fase 3: Sesión de Evocación Extra (30-45 mins)', desc: 'Forzar fluidez oral. Elegir una: Técnica 4/3/2, Blurting, Tarjetas Inversas, Shadowing o Efecto Protégé.' }
+                ]
+            },
+            'interference': {
+                title: 'Día de Interferencia (Viernes)',
+                description: 'Romper dependencia lineal y obligar al cerebro a discriminar reglas en tiempo real.',
+                phases: [
+                    { name: 'Fase 1: Mosaico Visual', desc: 'Ver primeros 15 mins de videos (Lun-Jue) a 1.5x, pausando para responder. Fuerza salto impredecible entre estructuras.' },
+                    { name: 'Fase 2: Producción Oral Intercalada', desc: 'Seleccionar preguntas al azar de la semana y grabar respuestas largas, mezclando tiempos verbales.' }
+                ]
+            },
+            'consolidation': {
+                title: 'Día de Consolidación (Sábado)',
+                description: 'Independizar conocimiento del formato video. CERO videos académicos hoy.',
+                phases: [
+                    { name: 'Fase 1: Repetición Espaciada (20-30 mins)', desc: 'Repasar estructuras algorítmicamente (Anki/RemNote) antes de la curva del olvido.' },
+                    { name: 'Fase 2: Interacción No Guionizada', desc: 'Diálogo en tiempo real: tutor, IA conversacional o monólogo ininterrumpido. Transferencia pura.' }
+                ]
+            },
+            'rest': {
+                title: 'Día de Descompresión (Domingo)',
+                description: 'Recuperación neuroquímica. Cero estudio consciente.',
+                phases: [
+                    { name: 'Exposición Pasiva', desc: 'Exponerse al idioma solo por entretenimiento y placer (documental, lectura, podcast). Asienta el lexicón y reduce filtro afectivo.' }
+                ]
+            }
+        };
 
         // --- ESTADO GLOBAL (Custom Hook) ---
         function useAppStore() {
@@ -242,6 +305,12 @@
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState('beginner');
             const [selectedClass, setSelectedClass] = React.useState(null);
+            const [isRoutineOpen, setIsRoutineOpen] = React.useState(false);
+
+            // Obtener el día de la semana actual (0 = Domingo, 1 = Lunes, ...)
+            const currentDay = new Date().getDay();
+            const currentPlan = STUDY_PLAN[currentDay];
+            const planDetails = PLAN_DETAILS[currentPlan.type];
 
             const renderHeader = () => {
                 // Total calculado solo para el icono del check azul
@@ -267,6 +336,52 @@
                 );
             };
 
+            const renderRoutinePanel = () => {
+                return (
+                    <div className="mb-8">
+                        {/* Tarjeta Resumen del Día */}
+                        <div 
+                            className={`rounded-2xl p-4 shadow-lg border-b-4 cursor-pointer transition-all ${currentPlan.color} ${isRoutineOpen ? 'border-b-0 mb-1 rounded-b-none' : 'border-black/30'}`}
+                            onClick={() => setIsRoutineOpen(!isRoutineOpen)}
+                        >
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-black/20 p-2 rounded-xl text-white">
+                                        <Icon name={currentPlan.icon} size={24} />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-bold text-lg text-white">{currentPlan.name}</h2>
+                                        <p className="text-sm text-white/80 font-medium">Toca para ver la rutina de hoy</p>
+                                    </div>
+                                </div>
+                                <div className="text-white bg-black/20 p-1 rounded-full">
+                                    <Icon name={isRoutineOpen ? "ChevronUp" : "ChevronDown"} size={20} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Detalles Expandibles */}
+                        <div className={`bg-surface rounded-b-2xl border-2 border-t-0 border-surface shadow-lg px-4 ${isRoutineOpen ? 'py-4' : 'py-0 h-0 border-transparent overflow-hidden'} transition-all duration-300 ease-in-out`}>
+                            {isRoutineOpen && (
+                                <div className="animate-[slideUp_0.3s_ease-out]">
+                                    <h3 className={`font-bold text-lg mb-2 ${currentPlan.textColor}`}>{planDetails.title}</h3>
+                                    <p className="text-sm text-duotext mb-4">{planDetails.description}</p>
+                                    
+                                    <div className="flex flex-col gap-3">
+                                        {planDetails.phases.map((phase, idx) => (
+                                            <div key={idx} className="bg-darker p-3 rounded-xl border border-duogray/50">
+                                                <h4 className="font-bold text-sm text-white mb-1">{phase.name}</h4>
+                                                <p className="text-xs text-duotext leading-relaxed">{phase.desc}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
             const renderLearnTab = () => {
                 const classes = Array.from({ length: TOTAL_CLASSES }, (_, i) => i + 1);
                 const completedInLevel = data.completed[currentLevel] || [];
@@ -280,6 +395,10 @@
 
                 return (
                     <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
+                        
+                        {/* PANEL DE RUTINA DIARIA */}
+                        {renderRoutinePanel()}
+
                         {/* Selector de nivel */}
                         <div className="flex bg-surface rounded-2xl p-1 mb-8 shadow-lg">
                             {['beginner', 'intermediate', 'advanced'].map(lvl => (
@@ -696,7 +815,7 @@
                     
                     <style>{`
                         @keyframes slideUp {
-                            from { transform: translateY(100%); opacity: 0; }
+                            from { transform: translateY(-10px); opacity: 0; }
                             to { transform: translateY(0); opacity: 1; }
                         }
                         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
