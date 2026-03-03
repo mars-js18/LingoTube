@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LingoTube - Aprende con YT</title>
+    
+    <!-- PWA Manifest inyectado como Data URI -->
+    <link rel="manifest" href="data:application/json;charset=utf-8,%7B%22name%22%3A%22LingoTube%22%2C%22short_name%22%3A%22LingoTube%22%2C%22start_url%22%3A%22.%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23111b21%22%2C%22theme_color%22%3A%22%2358cc02%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAyNCAyNCcgZmlsbD0nbm9uZScgc3Ryb2tlPScjNThjYzAyJyBzdHJva2Utd2lkdGg9JzInIHN0cm9rZS1saW5lY2FwPSdyb3VuZCcgc3Ryb2tlLWxpbmVqb2luPSdyb3VuZCc%2BPHBhdGggZD0nTTIyIDEyQzIyIDE3LjUyMjggMTcuNTIyOCAyMiAxMiAyMkM2LjQ3NzE1IDIyIDIgMTcuNTIyOCAyIDEyQzIgNi40NzcxNSA2LjQ3NzE1IDIgMTIgMkMxNy41MjI4IDIgMjIgNi40NzcxNSAyMiAxMlonLz48cGF0aCBkPSdNMTAgOGw2IDQtNiA0Vjh6Jy8%2BPC9zdmc%2B%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+    <meta name="theme-color" content="#111b21">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- Librerías -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#111b21',
+                        darker: '#0b141a',
+                        surface: '#202f36',
+                        duogreen: '#58cc02',
+                        duogreenDark: '#46a302',
+                        duoblue: '#1cb0f6',
+                        duoblueDark: '#1899d6',
+                        duogold: '#ffc800',
+                        duogoldDark: '#e5b400',
+                        duogray: '#37464f',
+                        duotext: '#afbac0'
+                    },
+                    animation: {
+                        'bounce-slow': 'bounce 2s infinite',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #111b21; color: white; -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111b21; }
+        ::-webkit-scrollbar-thumb { background: #37464f; border-radius: 10px; }
+        
+        .duo-btn {
+            transition: all 0.1s;
+            border-bottom-width: 4px;
+        }
+        .duo-btn:active {
+            transform: translateY(4px);
+            border-bottom-width: 0px;
+            margin-bottom: 4px;
+        }
+        
+        .path-node { position: relative; z-index: 10; }
+        .node-connector { position: absolute; width: 4px; z-index: 1; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+                self.addEventListener('install', (e) => e.waitUntil(self.skipWaiting()));
+                self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+                self.addEventListener('fetch', (e) => {});
+            `;
+            const blob = new Blob([swCode], {type: 'application/javascript'});
+            navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(err => console.log('SW error:', err));
+        }
+    </script>
+
+    <script type="text/babel">
+        // --- ICONOS ---
+        const Icon = ({ name, size = 24, className = "", color="currentColor" }) => {
+            const ref = React.useRef();
+            React.useEffect(() => {
+                if (ref.current) {
+                    lucide.createIcons({
+                        icons: { [name]: lucide.icons[name] },
+                        nameAttr: 'data-lucide',
+                        attrs: { class: className, width: size, height: size, stroke: color }
+                    });
+                }
+            }, [name, size, className, color]);
+            return <i ref={ref} data-lucide={name}></i>;
+        };
+
+        // --- DATOS DEL CURSO ---
+        const PLAYLISTS = {
+            beginner: 'PLAz9gX__ElWpQ0wYCzec4AenQ91t3n7jT',
+            intermediate: 'PLAz9gX__ElWorwvQHOLm-bvFigMyDvuX2',
+            advanced: 'PLAz9gX__ElWrCO8O3zRRMOwj2Bk5QtXTx'
+        };
+        const TOTAL_CLASSES = 195;
+        const CLASS_DURATION = 50; // minutos
+        const REVIEW_DURATION = 20; // minutos
+
+        // --- ESTADO GLOBAL (Custom Hook) ---
+        function useAppStore() {
+            const [data, setData] = React.useState(() => {
+                const saved = localStorage.getItem('lingoTubeData');
+                let parsed = saved ? JSON.parse(saved) : null;
+                
+                // Estructura por defecto y migración
+                if (!parsed) {
+                    parsed = {
+                        streak: 0,
+                        lastActiveDate: null,
+                        completed: { beginner: [], intermediate: [], advanced: [] },
+                        reviews: { beginner: [], intermediate: [], advanced: [] },
+                        notes: {}
+                    };
+                } else if (!parsed.reviews) {
+                    // Si ya tenía datos, pero no el nuevo sistema de repasos, se lo agregamos
+                    parsed.reviews = { beginner: [], intermediate: [], advanced: [] };
+                }
+                return parsed;
+            });
+
+            React.useEffect(() => {
+                localStorage.setItem('lingoTubeData', JSON.stringify(data));
+            }, [data]);
+
+            // ESTADO PARA LOS CSVs
+            const [courseData, setCourseData] = React.useState(() => {
+                const saved = localStorage.getItem('lingoTubeCourseData');
+                return saved ? JSON.parse(saved) : { beginner: [], intermediate: [], advanced: [] };
+            });
+
+            React.useEffect(() => {
+                localStorage.setItem('lingoTubeCourseData', JSON.stringify(courseData));
+            }, [courseData]);
+
+            const updateCourseData = (level, levelData) => {
+                setCourseData(prev => ({ ...prev, [level]: levelData }));
+            };
+
+            // Lógica de Racha
+            React.useEffect(() => {
+                const today = new Date().toDateString();
+                if (data.lastActiveDate !== today) {
+                    let newStreak = data.streak;
+                    if (data.lastActiveDate) {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        if (data.lastActiveDate !== yesterday.toDateString()) {
+                            newStreak = 0;
+                        }
+                    }
+                }
+            }, []);
+
+            const updateActivity = () => {
+                const today = new Date().toDateString();
+                setData(prev => {
+                    if (prev.lastActiveDate === today) return prev;
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    const keptStreak = prev.lastActiveDate === yesterday.toDateString();
+                    return {
+                        ...prev,
+                        streak: keptStreak ? prev.streak + 1 : 1,
+                        lastActiveDate: today
+                    };
+                });
+            };
+
+            // NUEVA Lógica de Progreso "En Cadena"
+            const toggleProgress = (level, classId, type) => {
+                // type puede ser 'completed' (clase normal) o 'reviews' (repaso dorado)
+                updateActivity();
+                
+                setData(prev => {
+                    const isDone = prev[type][level].includes(classId);
+                    const newState = { ...prev };
+                    
+                    if (isDone) {
+                        // DESMARCAR: Borra esta clase/repaso y TODAS LAS SIGUIENTES (> classId)
+                        newState[type] = {
+                            ...prev[type],
+                            [level]: prev[type][level].filter(id => id < classId)
+                        };
+                        // Si desmarcamos una clase, debemos borrar también todos sus repasos futuros
+                        if (type === 'completed') {
+                            newState.reviews = {
+                                ...prev.reviews,
+                                [level]: prev.reviews[level].filter(id => id < classId)
+                            };
+                        }
+                    } else {
+                        // MARCAR: Añade esta clase/repaso y TODAS LAS ANTERIORES (< classId)
+                        const newIds = Array.from({ length: classId }, (_, i) => i + 1);
+                        newState[type] = {
+                            ...prev[type],
+                            [level]: Array.from(new Set([...prev[type][level], ...newIds]))
+                        };
+                        // Si marcamos un repaso, por lógica también debimos haber visto las clases anteriores
+                        if (type === 'reviews') {
+                            newState.completed = {
+                                ...prev.completed,
+                                [level]: Array.from(new Set([...prev.completed[level], ...newIds]))
+                            };
+                        }
+                    }
+                    return newState;
+                });
+            };
+
+            const saveNote = (classKey, text) => {
+                updateActivity();
+                setData(prev => ({
+                    ...prev,
+                    notes: { ...prev.notes, [classKey]: text }
+                }));
+            };
+
+            return { data, toggleProgress, saveNote, updateActivity, courseData, updateCourseData };
+        }
+
+        // --- COMPONENTES ---
+
+        const getOffset = (index) => {
+            const cycle = index % 8;
+            if (cycle === 0 || cycle === 4) return 0;
+            if (cycle === 1 || cycle === 3) return 30;
+            if (cycle === 2) return 50;
+            if (cycle === 5 || cycle === 7) return -30;
+            if (cycle === 6) return -50;
+            return 0;
+        };
+
+        const App = () => {
+            const { data, toggleProgress, saveNote, courseData, updateCourseData } = useAppStore();
+            const [currentTab, setCurrentTab] = React.useState('learn');
+            const [currentLevel, setCurrentLevel] = React.useState('beginner');
+            const [selectedClass, setSelectedClass] = React.useState(null);
+
+            const renderHeader = () => {
+                // Total calculado solo para el icono del check azul
+                const totalClassesDone = data.completed.beginner.length + data.completed.intermediate.length + data.completed.advanced.length;
+                
+                return (
+                    <header className="fixed top-0 w-full bg-darker/90 backdrop-blur-md z-40 border-b border-surface px-4 py-3 flex justify-between items-center">
+                        <div className="flex items-center gap-2 font-bold text-xl tracking-wider text-white">
+                            <Icon name="PlayCircle" color="#58cc02" />
+                            LingoTube
+                        </div>
+                        <div className="flex gap-4 font-bold text-lg">
+                            <div className="flex items-center gap-1 text-orange-400">
+                                <Icon name="Flame" color="currentColor" />
+                                <span>{data.streak}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-duoblue">
+                                <Icon name="CheckCircle" color="currentColor" />
+                                <span>{totalClassesDone}</span>
+                            </div>
+                        </div>
+                    </header>
+                );
+            };
+
+            const renderLearnTab = () => {
+                const classes = Array.from({ length: TOTAL_CLASSES }, (_, i) => i + 1);
+                const completedInLevel = data.completed[currentLevel] || [];
+                const reviewsInLevel = data.reviews[currentLevel] || [];
+                
+                // ¿Cuál es el siguiente paso sugerido? (Ya sea clase nueva o repaso pendiente)
+                let nextUp = classes.find(c => !completedInLevel.includes(c)); // Siguiente clase no vista
+                if (!nextUp) {
+                    nextUp = classes.find(c => !reviewsInLevel.includes(c)) || TOTAL_CLASSES; // O el siguiente repaso
+                }
+
+                return (
+                    <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
+                        {/* Selector de nivel */}
+                        <div className="flex bg-surface rounded-2xl p-1 mb-8 shadow-lg">
+                            {['beginner', 'intermediate', 'advanced'].map(lvl => (
+                                <button 
+                                    key={lvl}
+                                    onClick={() => setCurrentLevel(lvl)}
+                                    className={`flex-1 py-2 text-sm font-bold rounded-xl transition-colors ${currentLevel === lvl ? 'bg-duogray text-white' : 'text-duotext hover:bg-duogray/50'}`}
+                                >
+                                    {lvl === 'beginner' ? 'Principiante' : lvl === 'intermediate' ? 'Intermedio' : 'Avanzado'}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Progreso del nivel */}
+                        <div className="mb-8 flex items-center justify-between bg-surface p-4 rounded-2xl">
+                            <div>
+                                <h2 className="font-bold text-lg">Progreso de Nivel</h2>
+                                <p className="text-sm text-duotext">
+                                    <span className="text-duogreen">{completedInLevel.length} Clases</span> / <span className="text-duogold">{reviewsInLevel.length} Repasos</span>
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xl font-bold text-duogreen">{Math.round((completedInLevel.length / TOTAL_CLASSES) * 100)}%</div>
+                            </div>
+                        </div>
+
+                        {/* Camino (Path) */}
+                        <div className="flex flex-col items-center relative">
+                            {classes.map((cls, index) => {
+                                const isClassCompleted = completedInLevel.includes(cls);
+                                const isReviewCompleted = reviewsInLevel.includes(cls);
+                                const isCurrent = cls === nextUp;
+                                const hasNote = !!data.notes[`${currentLevel}-${cls}`];
+                                
+                                const offset = getOffset(index);
+                                
+                                // Determinar la lógica visual exacta del nodo y la conexión
+                                let bgColor = 'bg-surface';
+                                let borderColor = 'border-duogray';
+                                let iconColor = '#afbac0';
+                                let extraClasses = '';
+                                let iconName = hasNote ? "BookOpen" : "Play";
+
+                                if (isReviewCompleted) {
+                                    bgColor = 'bg-duogold'; borderColor = 'border-duogoldDark'; iconColor = '#ffffff'; iconName = "Check";
+                                } else if (isClassCompleted) {
+                                    // Clase completada pero falta repaso
+                                    if (isCurrent) {
+                                        // Es el siguiente repaso!
+                                        bgColor = 'bg-duogold'; borderColor = 'border-duogoldDark'; iconColor = '#ffffff';
+                                        extraClasses = 'animate-bounce-slow shadow-[0_0_20px_rgba(255,200,0,0.5)]';
+                                        iconName = "RotateCw"; // Icono de repaso
+                                    } else {
+                                        bgColor = 'bg-duogreen'; borderColor = 'border-duogreenDark'; iconColor = '#ffffff'; iconName = "Check";
+                                    }
+                                } else {
+                                    // Nada completado
+                                    if (isCurrent) {
+                                        // Es la siguiente clase
+                                        bgColor = 'bg-duogreen'; borderColor = 'border-duogreenDark'; iconColor = '#ffffff';
+                                        extraClasses = 'animate-bounce-slow shadow-[0_0_20px_rgba(88,204,2,0.5)]';
+                                    } else {
+                                        extraClasses = 'opacity-70';
+                                    }
+                                }
+
+                                // Color de la línea de conexión al siguiente nodo
+                                const nextClassCompleted = completedInLevel.includes(cls + 1);
+                                const nextReviewCompleted = reviewsInLevel.includes(cls + 1);
+                                const connectorBg = nextReviewCompleted ? 'bg-duogold' : nextClassCompleted ? 'bg-duogreen' : 'bg-surface';
+
+                                return (
+                                    <div key={cls} className="relative flex flex-col items-center mb-6">
+                                        {/* Línea conectora */}
+                                        {index < classes.length - 1 && (
+                                            <div 
+                                                className={`absolute w-3 h-16 -bottom-10 -z-10 transition-colors duration-500 ${connectorBg}`}
+                                                style={{
+                                                    transform: `translateX(${(getOffset(index + 1) - offset) / 2}px) rotate(${Math.atan2(100, getOffset(index + 1) - offset) * (180/Math.PI) - 90}deg)`,
+                                                    transformOrigin: 'top center',
+                                                    borderRadius: '4px'
+                                                }}
+                                            />
+                                        )}
+
+                                        <button 
+                                            onClick={() => setSelectedClass(cls)}
+                                            className={`path-node w-16 h-16 rounded-full border-b-4 flex items-center justify-center transition-all ${bgColor} ${borderColor} ${extraClasses}`}
+                                            style={{ transform: `translateX(${offset}px)` }}
+                                        >
+                                            <Icon name={iconName} color={iconColor} size={28} className={iconName === 'Play' ? 'ml-1' : ''} />
+                                        </button>
+                                        
+                                        {/* Corona o indicador de estado */}
+                                        <div className="absolute top-12 font-bold text-xs bg-darker px-2 py-1 rounded-full border border-surface shadow-sm" style={{ transform: `translateX(${offset}px)` }}>
+                                            Clase {cls}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderStatsTab = () => {
+                const bDone = data.completed.beginner.length;
+                const iDone = data.completed.intermediate.length;
+                const aDone = data.completed.advanced.length;
+                const totalClassesDone = bDone + iDone + aDone;
+
+                const brDone = data.reviews.beginner.length;
+                const irDone = data.reviews.intermediate.length;
+                const arDone = data.reviews.advanced.length;
+                const totalReviewsDone = brDone + irDone + arDone;
+
+                const totalClasses = TOTAL_CLASSES * 3;
+                
+                // Mates de tiempo
+                const minsDone = (totalClassesDone * CLASS_DURATION) + (totalReviewsDone * REVIEW_DURATION);
+                const hoursDone = (minsDone / 60).toFixed(1);
+                
+                const minsTotal = (totalClasses * CLASS_DURATION) + (totalClasses * REVIEW_DURATION);
+                const minsLeft = minsTotal - minsDone;
+                const hoursLeft = (minsLeft / 60).toFixed(1);
+
+                return (
+                    <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
+                        <h1 className="text-2xl font-bold mb-6">Tu Progreso Global</h1>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray">
+                                <Icon name="CheckCircle" className="mb-2" color="#58cc02" size={32} />
+                                <div className="text-2xl font-bold">{totalClassesDone}</div>
+                                <div className="text-sm text-duotext">Clases Listas</div>
+                            </div>
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray">
+                                <Icon name="RotateCw" className="mb-2" color="#ffc800" size={32} />
+                                <div className="text-2xl font-bold">{totalReviewsDone}</div>
+                                <div className="text-sm text-duotext">Repasos Listos</div>
+                            </div>
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray">
+                                <Icon name="Clock" className="mb-2" color="#1cb0f6" size={32} />
+                                <div className="text-2xl font-bold">{hoursDone}h</div>
+                                <div className="text-sm text-duotext">Tiempo Invertido</div>
+                            </div>
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray">
+                                <Icon name="Calendar" className="mb-2" color="#ff4b4b" size={32} />
+                                <div className="text-2xl font-bold">{hoursLeft}h</div>
+                                <div className="text-sm text-duotext">Tiempo Restante</div>
+                            </div>
+                        </div>
+
+                        <div className="bg-surface rounded-2xl p-5 mb-6">
+                            <h2 className="font-bold mb-4">Detalle por Nivel</h2>
+                            {[
+                                { name: 'Principiante', done: bDone, rev: brDone },
+                                { name: 'Intermedio', done: iDone, rev: irDone },
+                                { name: 'Avanzado', done: aDone, rev: arDone }
+                            ].map(l => (
+                                <div key={l.name} className="mb-4 last:mb-0">
+                                    <div className="flex justify-between mb-1 text-sm font-bold">
+                                        <span>{l.name}</span>
+                                        <span className="text-duotext">{l.done}/{TOTAL_CLASSES}</span>
+                                    </div>
+                                    <div className="h-3 w-full bg-darker rounded-full overflow-hidden relative">
+                                        {/* Barra verde de clases */}
+                                        <div className="absolute top-0 left-0 h-full bg-duogreen transition-all duration-500" style={{ width: `${(l.done/TOTAL_CLASSES)*100}%` }}></div>
+                                        {/* Barra dorada de repasos superpuesta */}
+                                        <div className="absolute top-0 left-0 h-full bg-duogold transition-all duration-500" style={{ width: `${(l.rev/TOTAL_CLASSES)*100}%` }}></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            };
+
+            // LÓGICA DE PARSEO DE CSV (Extraída para reusar)
+            const parseCSVText = (text) => {
+                const lines = text.split('\n');
+                const parsedData = [];
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    const row = [];
+                    let inQuotes = false;
+                    let current = '';
+                    for (let j = 0; j < lines[i].length; j++) {
+                        const char = lines[i][j];
+                        if (char === '"') inQuotes = !inQuotes;
+                        else if (char === ',' && !inQuotes) { row.push(current.trim()); current = ''; }
+                        else current += char;
+                    }
+                    row.push(current.trim());
+                    if (row.length >= 4) {
+                        parsedData.push({ id: parseInt(row[0]), title: row[1].replace(/^"|"$/g, ''), videoUrl: row[2], videoId: row[3] });
+                    }
+                }
+                return parsedData;
+            };
+
+            // AUTO-CARGA DESDE GITHUB PAGES (Se ejecuta al abrir la app)
+            React.useEffect(() => {
+                const autoLoad = async () => {
+                    const levels = ['beginner', 'intermediate', 'advanced'];
+                    for (const lvl of levels) {
+                        // Solo intenta descargarlos si el usuario aún no tiene los datos en su celular
+                        if (!courseData[lvl] || courseData[lvl].length === 0) {
+                            try {
+                                const response = await fetch(`./${lvl}.csv`);
+                                if (response.ok) {
+                                    const text = await response.text();
+                                    updateCourseData(lvl, parseCSVText(text));
+                                }
+                            } catch (e) {
+                                console.log(`No se pudo auto-cargar ${lvl}.csv`);
+                            }
+                        }
+                    }
+                };
+                autoLoad();
+            }, []);
+
+            // BOTÓN MANUAL PARA FORZAR SINCRONIZACIÓN DESDE EL SERVIDOR
+            const syncFromServer = async () => {
+                const levels = ['beginner', 'intermediate', 'advanced'];
+                let loadedAny = false;
+                for (const lvl of levels) {
+                    try {
+                        const response = await fetch(`./${lvl}.csv`);
+                        if (response.ok) {
+                            const text = await response.text();
+                            const parsed = parseCSVText(text);
+                            if(parsed.length > 0) {
+                                updateCourseData(lvl, parsed);
+                                loadedAny = true;
+                            }
+                        }
+                    } catch (err) {}
+                }
+                if(loadedAny) alert("¡Datos sincronizados con éxito desde GitHub!");
+                else alert("No se encontraron los archivos .csv. Asegúrate de llamarlos beginner.csv, intermediate.csv y advanced.csv y subirlos a GitHub.");
+            };
+
+            const handleFileUpload = (level, file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    updateCourseData(level, parseCSVText(e.target.result));
+                };
+                reader.readAsText(file);
+            };
+
+            const renderProfileTab = () => (
+                <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
+                    <h1 className="text-2xl font-bold mb-6">Configuración y Perfil</h1>
+                    
+                    <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <Icon name="Database" color="#1cb0f6" size={28} />
+                                <h2 className="font-bold text-lg text-white">Datos de Clases</h2>
+                            </div>
+                            <button onClick={syncFromServer} className="bg-duoblue/20 text-duoblue hover:bg-duoblue/30 p-2 rounded-xl flex items-center gap-1 text-sm font-bold transition-colors">
+                                <Icon name="DownloadCloud" size={18} /> Sync
+                            </button>
+                        </div>
+                        <p className="text-sm text-duotext mb-6">
+                            La app busca automáticamente los archivos en el servidor de GitHub. Si hubo una actualización, presiona "Sync" para refrescarlos.
+                        </p>
+                        
+                        {['beginner', 'intermediate', 'advanced'].map(lvl => {
+                            const label = lvl === 'beginner' ? 'Principiante' : lvl === 'intermediate' ? 'Intermedio' : 'Avanzado';
+                            const isLoaded = courseData[lvl] && courseData[lvl].length > 0;
+                            
+                            return (
+                                <div key={lvl} className="mb-4 last:mb-0 bg-darker p-4 rounded-xl border border-surface">
+                                    <label className="flex items-center justify-between mb-3">
+                                        <span className="font-bold text-sm">{label}</span>
+                                        {isLoaded ? (
+                                            <span className="text-xs font-bold text-duogreen flex items-center gap-1"><Icon name="Check" size={14}/> {courseData[lvl].length} listas</span>
+                                        ) : (
+                                            <span className="text-xs font-bold text-orange-400">Falta subir</span>
+                                        )}
+                                    </label>
+                                    <input 
+                                        type="file" 
+                                        accept=".csv"
+                                        onChange={(e) => {
+                                            if(e.target.files[0]) handleFileUpload(lvl, e.target.files[0]);
+                                        }}
+                                        className="block w-full text-xs text-duotext file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-duoblue/20 file:text-duoblue hover:file:bg-duoblue/30 cursor-pointer"
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+
+            const renderTabBar = () => (
+                <nav className="fixed bottom-0 w-full bg-darker border-t border-surface py-3 px-6 z-40 pb-safe">
+                    <div className="flex justify-between max-w-md mx-auto">
+                        <button onClick={() => setCurrentTab('learn')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'learn' ? 'text-duoblue bg-duoblue/10' : 'text-duotext'}`}>
+                            <Icon name="Home" />
+                            <span className="text-xs font-bold mt-1">Aprender</span>
+                        </button>
+                        <button onClick={() => setCurrentTab('stats')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'stats' ? 'text-duoblue bg-duoblue/10' : 'text-duotext'}`}>
+                            <Icon name="BarChart2" />
+                            <span className="text-xs font-bold mt-1">Estadísticas</span>
+                        </button>
+                        <button onClick={() => setCurrentTab('profile')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'profile' ? 'text-duoblue bg-duoblue/10' : 'text-duotext'}`}>
+                            <Icon name="User" />
+                            <span className="text-xs font-bold mt-1">Perfil</span>
+                        </button>
+                    </div>
+                </nav>
+            );
+
+            // --- MODAL DE CLASE ---
+            const renderModal = () => {
+                if (!selectedClass) return null;
+
+                const classKey = `${currentLevel}-${selectedClass}`;
+                const isClassCompleted = data.completed[currentLevel].includes(selectedClass);
+                const isReviewCompleted = data.reviews[currentLevel].includes(selectedClass);
+                const note = data.notes[classKey] || '';
+
+                const levelCourses = courseData[currentLevel] || [];
+                const courseInfo = levelCourses.find(c => c.id === selectedClass);
+                
+                const ytLink = courseInfo && courseInfo.videoUrl ? courseInfo.videoUrl : `https://www.youtube.com/watch?list=${PLAYLISTS[currentLevel]}&index=${selectedClass}`;
+                const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${selectedClass}`;
+
+                return (
+                    <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4">
+                        <div className="bg-dark w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4 transform transition-all border-2 border-surface animate-[slideUp_0.3s_ease-out] max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-start border-b border-surface pb-4 mb-2">
+                                <div className="pr-4">
+                                    <div className="text-duotext text-sm font-bold uppercase tracking-wider mb-1">
+                                        {currentLevel === 'beginner' ? 'Principiante' : currentLevel === 'intermediate' ? 'Intermedio' : 'Avanzado'} • #{selectedClass}
+                                    </div>
+                                    <h3 className="text-xl font-bold leading-tight">{displayTitle}</h3>
+                                </div>
+                                <button onClick={() => setSelectedClass(null)} className="bg-surface p-2 rounded-full text-duotext hover:text-white shrink-0">
+                                    <Icon name="X" />
+                                </button>
+                            </div>
+
+                            <a 
+                                href={ytLink} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="duo-btn w-full bg-[#ff0000] hover:bg-[#cc0000] text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 border-[#b30000] text-lg mb-2"
+                            >
+                                <Icon name="Youtube" />
+                                Ver Video Completo
+                            </a>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                {/* Botón de Completar Clase */}
+                                <button 
+                                    onClick={() => toggleProgress(currentLevel, selectedClass, 'completed')}
+                                    className={`duo-btn w-full font-bold py-3 px-2 rounded-2xl flex items-center justify-center gap-2 text-[15px] border-b-4 ${
+                                        isClassCompleted 
+                                        ? 'bg-surface text-white border-duogray' 
+                                        : 'bg-duogreen text-white border-duogreenDark'
+                                    }`}
+                                >
+                                    {isClassCompleted ? <Icon name="Undo2" size={20}/> : <Icon name="Check" size={20}/>}
+                                    {isClassCompleted ? 'Desmarcar Clase' : 'Completar Clase (y previas)'}
+                                </button>
+
+                                {/* Botón de Completar Repaso */}
+                                <button 
+                                    onClick={() => toggleProgress(currentLevel, selectedClass, 'reviews')}
+                                    className={`duo-btn w-full font-bold py-3 px-2 rounded-2xl flex items-center justify-center gap-2 text-[15px] border-b-4 ${
+                                        isReviewCompleted 
+                                        ? 'bg-surface text-white border-duogray' 
+                                        : 'bg-duogold text-white border-duogoldDark'
+                                    }`}
+                                >
+                                    {isReviewCompleted ? <Icon name="Undo2" size={20}/> : <Icon name="RotateCw" size={20}/>}
+                                    {isReviewCompleted ? 'Desmarcar Repaso' : 'Completar Repaso (y previos)'}
+                                </button>
+                            </div>
+
+                            <div className="mt-2">
+                                <label className="flex items-center gap-2 text-sm font-bold text-duotext mb-2">
+                                    <Icon name="BookOpen" size={16} />
+                                    Mis Notas para esta clase:
+                                </label>
+                                <textarea 
+                                    className="w-full bg-surface border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-24"
+                                    placeholder="Escribe aquí el tema, vocabulario o apuntes..."
+                                    value={note}
+                                    onChange={(e) => saveNote(classKey, e.target.value)}
+                                ></textarea>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen relative font-sans">
+                    {renderHeader()}
+                    <main>
+                        {currentTab === 'learn' && renderLearnTab()}
+                        {currentTab === 'stats' && renderStatsTab()}
+                        {currentTab === 'profile' && renderProfileTab()}
+                    </main>
+                    {renderTabBar()}
+                    {renderModal()}
+                    
+                    <style>{`
+                        @keyframes slideUp {
+                            from { transform: translateY(100%); opacity: 0; }
+                            to { transform: translateY(0); opacity: 1; }
+                        }
+                        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+                    `}</style>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
