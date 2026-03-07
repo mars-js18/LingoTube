@@ -258,10 +258,17 @@
                         completed: { beginner: [], intermediate: [], advanced: [] },
                         reviews: { beginner: [], intermediate: [], advanced: [] },
                         notes: {},
-                        routineProgress: {} // Registra fases diarias completadas: {'2023-10-25': [0, 1, 2]}
+                        routineProgress: {},
+                        streakFreezes: 3,
+                        lastFreezeRefillMonth: new Date().toISOString().slice(0, 7) // Ej. "2023-10"
                     };
-                } else if (!parsed.routineProgress) {
-                    parsed.routineProgress = {};
+                } else {
+                    // Migraciones para usuarios existentes
+                    if (!parsed.routineProgress) parsed.routineProgress = {};
+                    if (parsed.streakFreezes === undefined) {
+                        parsed.streakFreezes = 3;
+                        parsed.lastFreezeRefillMonth = new Date().toISOString().slice(0, 7);
+                    }
                 }
                 return parsed;
             });
@@ -289,19 +296,57 @@
 
             const [streakIncreased, setStreakIncreased] = React.useState(false);
 
+            // --- LÓGICA INTELIGENTE DE COMODINES DE RACHA ---
             React.useEffect(() => {
-                const today = new Date().toDateString();
-                if (data.lastActiveDate !== today) {
-                    let newStreak = data.streak;
-                    if (data.lastActiveDate) {
-                        const yesterday = new Date();
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        if (data.lastActiveDate !== yesterday.toDateString()) {
-                            newStreak = 0; 
-                            setData(prev => ({...prev, streak: newStreak}));
+                setData(prev => {
+                    const today = new Date();
+                    const todayStr = today.toDateString();
+                    // Obtener "YYYY-MM" para el mes actual
+                    const currentMonthStr = today.getFullYear() + "-" + (today.getMonth() + 1).toString().padStart(2, '0');
+                    
+                    let newState = { ...prev };
+                    let stateChanged = false;
+
+                    // 1. Rellenar comodines si cambió el mes
+                    if (newState.lastFreezeRefillMonth !== currentMonthStr) {
+                        newState.streakFreezes = 3;
+                        newState.lastFreezeRefillMonth = currentMonthStr;
+                        stateChanged = true;
+                    }
+
+                    // 2. Verificar días perdidos y aplicar comodines
+                    if (newState.lastActiveDate && newState.lastActiveDate !== todayStr) {
+                        const lastDate = new Date(newState.lastActiveDate);
+                        
+                        // Normalizar a medianoche para cálculo matemático preciso
+                        const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                        const lastDateMidnight = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
+                        
+                        const diffTime = todayMidnight.getTime() - lastDateMidnight.getTime();
+                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                        if (diffDays > 1) {
+                            const missedDays = diffDays - 1; // Días que faltó estudiar
+                            if (newState.streakFreezes >= missedDays) {
+                                // ¡Se aplica Comodín!
+                                newState.streakFreezes -= missedDays;
+                                
+                                // Puenteamos la fecha a "ayer" para que hoy solo exija 1 lección y sume la racha
+                                const yesterday = new Date(todayMidnight);
+                                yesterday.setDate(yesterday.getDate() - 1);
+                                newState.lastActiveDate = yesterday.toDateString();
+                                stateChanged = true;
+                            } else {
+                                // No hay comodines suficientes, se pierde la racha
+                                if (newState.streak !== 0) {
+                                    newState.streak = 0;
+                                    stateChanged = true;
+                                }
+                            }
                         }
                     }
-                }
+                    return stateChanged ? newState : prev;
+                });
             }, []);
 
             const updateActivity = () => {
@@ -363,7 +408,6 @@
                 });
             };
 
-            // NUEVA FUNCIÓN: Marcar fases de la rutina diaria
             const toggleRoutinePhase = (dateStr, phaseIdx, totalPhases) => {
                 updateActivity();
                 setData(prev => {
@@ -373,7 +417,6 @@
                         ? todayProgress.filter(i => i !== phaseIdx)
                         : [...todayProgress, phaseIdx];
 
-                    // Si acaba de completar todas las fases del día (y no estaban listas antes)
                     if (!isDone && newProgress.length === totalPhases) {
                         setTimeout(() => {
                             confetti({ particleCount: 150, spread: 80, origin: { y: 0.4 }, zIndex: 9999 });
@@ -479,7 +522,7 @@
 
                 const daysOfWeek = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
                 const todayIdx = currentDay === 0 ? 6 : currentDay - 1;
-                const { streak } = data;
+                const { streak, streakFreezes } = data;
 
                 return (
                     <div className="fixed inset-0 bg-dark/95 z-50 flex flex-col items-center justify-center p-6 animate-[scaleIn_0.2s_ease-out]">
@@ -496,9 +539,10 @@
                         </div>
                         
                         <h2 className="text-4xl font-black text-white mt-6 mb-2">{streak} {streak === 1 ? 'Día' : 'Días'}</h2>
-                        <p className="text-lg font-bold text-orange-400 mb-10 tracking-wide uppercase">¡Racha actual!</p>
+                        <p className="text-lg font-bold text-orange-400 mb-8 tracking-wide uppercase">¡Racha actual!</p>
 
-                        <div className="bg-surface border-2 border-duogray rounded-3xl p-6 w-full max-w-sm mb-8 shadow-2xl">
+                        {/* Semana Visual */}
+                        <div className="bg-surface border-2 border-duogray rounded-3xl p-6 w-full max-w-sm mb-6 shadow-2xl">
                             <div className="flex justify-between items-center w-full">
                                 {daysOfWeek.map((dayLabel, idx) => {
                                     const isLit = streak >= 7 || 
@@ -520,6 +564,20 @@
                                     );
                                 })}
                             </div>
+                        </div>
+
+                        {/* TARJETA DE COMODINES DE RACHA */}
+                        <div className="bg-surface border-2 border-duogray rounded-2xl p-4 w-full max-w-sm mb-6 flex items-center justify-between shadow-lg">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400">
+                                    <Icon name="Snowflake" size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-white text-sm">Comodines de Racha</h3>
+                                    <p className="text-xs text-duotext">Te salvan si fallas un día (Mensual)</p>
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black text-blue-400">{streakFreezes}/3</div>
                         </div>
 
                         <div className="max-w-sm text-center px-4 mb-10">
@@ -861,7 +919,7 @@
                             title: row[1].replace(/^"|"$/g, ''), 
                             videoUrl: row[2], 
                             videoId: row[3],
-                            // Nueva Lógica: Si el usuario agrega una séptima columna (índice 6), la usamos como descripción.
+                            // Lógica de Descripción (Índice 6 en el CSV)
                             description: row[6] ? row.slice(6).join(',').replace(/^"|"$/g, '') : null 
                         });
                     }
