@@ -82,7 +82,7 @@
             opacity: 1;
         }
         
-        /* Modales */
+        /* Modales y Animaciones Custom */
         @keyframes slideUp {
             from { transform: translateY(100%); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
@@ -90,6 +90,13 @@
         @keyframes scaleIn {
             from { transform: scale(0.8); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-30px) scale(1.5); opacity: 0; }
+        }
+        .animate-float-up {
+            animation: floatUp 1.5s ease-out forwards;
         }
     </style>
 </head>
@@ -144,50 +151,99 @@
             "La fluidez no es saber muchas palabras, sino automatizar el acceso a las que ya sabes mediante la mielinización de las vías neuronales."
         ];
 
-        // --- DATOS DEL PLAN DE ESTUDIO ---
+        // --- DATOS DEL PLAN DE ESTUDIO NEUROCOGNITIVO ---
         const STUDY_PLAN = {
-            1: { type: 'advance', name: 'Lunes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            2: { type: 'advance', name: 'Martes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            3: { type: 'advance', name: 'Miércoles de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            4: { type: 'advance', name: 'Jueves de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            5: { type: 'interference', name: 'Viernes de Interferencia', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'Shuffle' },
-            6: { type: 'consolidation', name: 'Sábado de Consolidación', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'Layers' },
-            0: { type: 'rest', name: 'Domingo de Descompresión', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Coffee' }
+            1: { type: 'monday', name: 'Lunes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            2: { type: 'tuesday', name: 'Martes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            3: { type: 'wednesday', name: 'Miércoles de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            4: { type: 'thursday', name: 'Jueves de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            5: { type: 'friday', name: 'Viernes de Interferencia', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'Shuffle' },
+            6: { type: 'saturday', name: 'Sábado de Consolidación', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'Layers' },
+            0: { type: 'sunday', name: 'Domingo de Descompresión', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Coffee' }
         };
 
-        const PLAN_DETAILS = {
-            'advance': {
-                title: 'Días de Avance (Lunes a Jueves)',
-                description: 'Consumir un video completo (60 mins) secuencialmente para aumentar la fluidez base.',
-                phases: [
-                    { name: 'Fase 1: Repaso Activo (Mins 0-15)', desc: 'No ver pasivamente. Pausar al ver el estímulo, explicar en voz alta, reanudar para comprobar.' },
-                    { name: 'Fase 2: Consumo y Anclaje (Mins 15-60)', desc: 'Enfocarse en prosodia y entonación. No transcribir explicaciones. Usar Método Cornell modificado (preguntas al margen).' },
-                    { name: 'Fase 3: Sesión de Evocación Extra (30-45 mins)', desc: 'Forzar fluidez oral. Elegir una: Técnica 4/3/2, Blurting, Tarjetas Inversas, Shadowing o Efecto Protégé.' }
-                ]
-            },
-            'interference': {
-                title: 'Día de Interferencia (Viernes)',
-                description: 'Romper dependencia lineal y obligar al cerebro a discriminar reglas en tiempo real.',
-                phases: [
-                    { name: 'Fase 1: Mosaico Visual', desc: 'Ver primeros 15 mins de videos (Lun-Jue) a 1.5x, pausando para responder. Fuerza salto impredecible entre estructuras.' },
-                    { name: 'Fase 2: Producción Oral Intercalada', desc: 'Seleccionar preguntas al azar de la semana y grabar respuestas largas, mezclando tiempos verbales.' }
-                ]
-            },
-            'consolidation': {
-                title: 'Día de Consolidación (Sábado)',
-                description: 'Independizar conocimiento del formato video. CERO videos académicos hoy.',
-                phases: [
-                    { name: 'Fase 1: Repetición Espaciada (20-30 mins)', desc: 'Repasar estructuras algorítmicamente (Anki/RemNote) antes de la curva del olvido.' },
-                    { name: 'Fase 2: Interacción No Guionizada', desc: 'Diálogo en tiempo real: tutor, IA conversacional o monólogo ininterrumpido. Transferencia pura.' }
-                ]
-            },
-            'rest': {
-                title: 'Día de Descompresión (Domingo)',
-                description: 'Recuperación neuroquímica. Cero estudio consciente.',
-                phases: [
-                    { name: 'Exposición Pasiva', desc: 'Exponerse al idioma solo por entretenimiento y placer (documental, lectura, podcast). Asienta el lexicón y reduce filtro afectivo.' }
-                ]
-            }
+        const getPlanDetails = (type, level) => {
+            const isBeginner = level === 'beginner';
+            
+            const globalPhases = [
+                { name: 'Bloque 1 (0-15m): Repaso Activo', desc: 'ESTRICTAMENTE PROHIBIDO ver pasivamente. Pausa el video al ver el estímulo, intenta explicar o conjugar en voz alta hacia la pantalla, y reanuda para comprobar tu precisión.' },
+                { name: 'Bloque 1 (15-60m): Consumo y Anclaje', desc: 'Atención total a la prosodia, velocidad y entonación del profesor nativo. Prohibido transcribir explicaciones; usa Método Cornell para escribir "preguntas de recuperación" en el margen.' }
+            ];
+
+            const plans = {
+                'monday': {
+                    title: 'Lunes: Modelado Fonológico',
+                    description: 'Día de Adquisición y Proceduralización Lineal. (Recuerda hacer tu Bloque Extra separado del horario de tu clase principal).',
+                    phases: [
+                        ...globalPhases,
+                        { name: 'Bloque 2 Extra (30-45m): Shadowing', desc: 'Escucha el audio y repite en voz alta con una fracción de segundo de retraso. Imita minuciosamente cadencia y emoción. Realiza esta técnica preferiblemente de pie o caminando al aire libre.' }
+                    ]
+                },
+                'tuesday': {
+                    title: 'Martes: Automatización bajo presión',
+                    description: 'Día de Adquisición y Proceduralización Lineal. Transfiere el control de tu idioma a la memoria procedimental.',
+                    phases: [
+                        ...globalPhases,
+                        { name: 'Bloque 2 Extra (30-45m): Técnica 4/3/2', desc: 'Graba un discurso sobre un tema complejo de hoy por 4 minutos ininterrumpidos. Resetea y repite los mismos argumentos en 3 minutos. Fuérzate a una entrega final en solo 2 minutos para eliminar pausas.' }
+                    ]
+                },
+                'wednesday': {
+                    title: 'Miércoles: Activación Léxica y Vaciado',
+                    description: 'Día de Adquisición y Proceduralización Lineal. Forzamos el conocimiento pasivo hacia la fase activa.',
+                    phases: [
+                        ...globalPhases,
+                        { name: 'Bloque 2 Extra (30-45m): Vaciado o Protégé', desc: 'OPCIÓN A (Blurting): Oculta apuntes y escribe/dicta rápido por 5-10m todo lo que recuerdes, luego marca errores con rojo. OPCIÓN B (Protégé): Da una clase magistral oral de 5m en inglés a un alumno imaginario, de pie y gesticulando.' }
+                    ]
+                },
+                'thursday': {
+                    title: 'Jueves: Interacción Social y Lenguaje',
+                    description: 'Día de Adquisición y Proceduralización Lineal. El objetivo hoy es perder el miedo al estrés conversacional.',
+                    phases: [
+                        ...globalPhases,
+                        { name: 'Bloque 2 Extra (30-45m): Lenguaje Emergente', desc: 'Habla 30 mins con una persona real (HelloTalk, Discord, tutor). Meta: tolerar ambigüedad. Usa estrategias de compensación (circunloquio) para explicar palabras olvidadas y prioriza el flujo.' }
+                    ]
+                },
+                'friday': {
+                    title: 'Viernes: Consolidación vs. Avance',
+                    description: isBeginner 
+                        ? 'Día de Avance. Consolidación de rutinas y repaso de estructuras.'
+                        : 'Rompe la dependencia lineal y obliga al cerebro a discriminar qué regla gramatical usar en tiempo real.',
+                    phases: isBeginner ? [
+                        ...globalPhases,
+                        { name: 'Bloque 2 Extra (30-45m)', desc: 'Habla libremente con una IA conversacional, haz Shadowing o repite cualquiera de los ejercicios de lunes a jueves que prefieras.' }
+                    ] : [
+                        { name: 'Fase 1: Mosaico de Recuperación Visual', desc: 'PROHIBIDO tomar clase nueva. Carga los videos de Lun-Jue y ve SÓLO los primeros 15 mins de repaso a velocidad 1.5x, pausando para responder. Salta impredeciblemente.' },
+                        { name: 'Fase 2: Producción Oral Intercalada', desc: 'Selecciona preguntas al azar de la semana y graba respuestas largas. Mezcla intencionalmente tiempos verbales y usa conectores discursivos avanzados (ej. "However", "At the same time").' }
+                    ]
+                },
+                'saturday': {
+                    title: 'Sábado: Consolidación y Transferencia',
+                    description: 'El conocimiento debe independizarse del formato de video de clase. CERO videos académicos hoy.',
+                    phases: isBeginner ? [
+                        { name: 'Fase 1: Interferencia Contextual', desc: 'PROHIBIDO tomar clase nueva. Salta a repasos aleatorios de las clases previas.' },
+                        { name: 'Fase 2: Repetición Espaciada', desc: 'Dedica 20-30 mins a tarjetas de producción inversa en Anki o RemNote (no reveles la respuesta hasta articular la oración perfecta en voz alta).' },
+                        { name: 'Fase 3: Interacción No Guionizada', desc: 'Transferencia pura: diálogo en tiempo real con un tutor de intercambio o IA conversacional.' }
+                    ] : [
+                        { name: 'Fase 1: Repetición Espaciada', desc: 'PROHIBIDO tomar clase nueva. Dedica 20-30 mins a tarjetas de producción inversa en Anki o RemNote justo antes de la curva del olvido.' },
+                        { name: 'Fase 2: Interacción No Guionizada', desc: 'Búsqueda de transferencia pura: diálogo en tiempo real con tutor, IA, o un monólogo ininterrumpido. (Opcional: Repaso guiado de la guía del alumno).' }
+                    ]
+                },
+                'sunday': {
+                    title: 'Domingo: Metacognición vs. Descanso',
+                    description: isBeginner 
+                        ? 'Día de afianzamiento ligero y preparación para la nueva semana.'
+                        : 'Recuperación neuroquímica y sináptica del cerebro. Erradicación absoluta del estudio consciente y evocación activa.',
+                    phases: isBeginner ? [
+                        { name: 'Repaso Ligero Espaciado', desc: 'Pasa 20-30 minutos en Anki haciendo tarjetas de producción inversa.' },
+                        { name: 'Interacción y Cierre', desc: 'Interacción oral no guionizada con tutor o IA. Puedes leer de forma ligera el libro de repaso para afianzar.' }
+                    ] : [
+                        { name: 'Descompresión y Exposición Pasiva', desc: 'Exponte al idioma SÓLO por entretenimiento pasivo y placer (documental, novela gráfica, podcast). Asienta el lexicón inconsciente y reduce tu filtro afectivo.' },
+                        { name: 'Opcional', desc: 'Lectura ligera de la guía de repaso del alumno (sin presión).' }
+                    ]
+                }
+            };
+
+            return plans[type];
         };
 
         // --- ESTADO GLOBAL (Custom Hook) ---
@@ -201,8 +257,11 @@
                         lastActiveDate: null,
                         completed: { beginner: [], intermediate: [], advanced: [] },
                         reviews: { beginner: [], intermediate: [], advanced: [] },
-                        notes: {}
+                        notes: {},
+                        routineProgress: {} // Registra fases diarias completadas: {'2023-10-25': [0, 1, 2]}
                     };
+                } else if (!parsed.routineProgress) {
+                    parsed.routineProgress = {};
                 }
                 return parsed;
             });
@@ -248,14 +307,16 @@
             const updateActivity = () => {
                 const today = new Date().toDateString();
                 setData(prev => {
-                    if (prev.lastActiveDate === today) return prev;
+                    if (prev.lastActiveDate === today) return prev; // Ya actuó hoy, no incrementa más
+                    
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
                     const keptStreak = prev.lastActiveDate === yesterday.toDateString();
                     
                     if (keptStreak || prev.streak === 0) {
                         setStreakIncreased(true);
-                        setTimeout(() => setStreakIncreased(false), 1500);
+                        setTimeout(() => setStreakIncreased(false), 2000);
+                        // Confeti solo para la racha
                         confetti({ particleCount: 50, spread: 60, origin: { y: 0.1 }, colors: ['#ffc800', '#ff4b4b'] });
                     }
 
@@ -302,6 +363,33 @@
                 });
             };
 
+            // NUEVA FUNCIÓN: Marcar fases de la rutina diaria
+            const toggleRoutinePhase = (dateStr, phaseIdx, totalPhases) => {
+                updateActivity();
+                setData(prev => {
+                    const todayProgress = prev.routineProgress?.[dateStr] || [];
+                    const isDone = todayProgress.includes(phaseIdx);
+                    const newProgress = isDone
+                        ? todayProgress.filter(i => i !== phaseIdx)
+                        : [...todayProgress, phaseIdx];
+
+                    // Si acaba de completar todas las fases del día (y no estaban listas antes)
+                    if (!isDone && newProgress.length === totalPhases) {
+                        setTimeout(() => {
+                            confetti({ particleCount: 150, spread: 80, origin: { y: 0.4 }, zIndex: 9999 });
+                        }, 100);
+                    }
+
+                    return {
+                        ...prev,
+                        routineProgress: {
+                            ...(prev.routineProgress || {}),
+                            [dateStr]: newProgress
+                        }
+                    };
+                });
+            };
+
             const saveNote = (classKey, text) => {
                 updateActivity();
                 setData(prev => ({
@@ -310,7 +398,7 @@
                 }));
             };
 
-            return { data, toggleProgress, saveNote, updateActivity, courseData, updateCourseData, streakIncreased };
+            return { data, toggleProgress, toggleRoutinePhase, saveNote, courseData, updateCourseData, streakIncreased };
         }
 
         const getOffset = (index) => {
@@ -324,7 +412,7 @@
         };
 
         const App = () => {
-            const { data, toggleProgress, saveNote, courseData, updateCourseData, streakIncreased } = useAppStore();
+            const { data, toggleProgress, toggleRoutinePhase, saveNote, courseData, updateCourseData, streakIncreased } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState('beginner');
             const [selectedClass, setSelectedClass] = React.useState(null);
@@ -333,7 +421,6 @@
             const [dailyQuote, setDailyQuote] = React.useState('');
             const [streakQuote, setStreakQuote] = React.useState('');
             
-            // Referencia para el auto-scroll
             const activeNodeRef = React.useRef(null);
 
             React.useEffect(() => {
@@ -341,10 +428,8 @@
                 setStreakQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
             }, []);
 
-            // Efecto de Auto-Scroll al cambiar de nivel o regresar a la pestaña de aprender
             React.useEffect(() => {
                 if (currentTab === 'learn' && activeNodeRef.current) {
-                    // Timeout corto para permitir que React renderice los elementos antes de mover la ventana
                     setTimeout(() => {
                         activeNodeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }, 300);
@@ -353,7 +438,7 @@
 
             const currentDay = new Date().getDay();
             const currentPlan = STUDY_PLAN[currentDay];
-            const planDetails = PLAN_DETAILS[currentPlan.type];
+            const planDetails = getPlanDetails(currentPlan.type, currentLevel);
 
             const renderHeader = () => {
                 const totalClassesDone = data.completed.beginner.length + data.completed.intermediate.length + data.completed.advanced.length;
@@ -367,10 +452,18 @@
                         <div className="flex gap-4 font-bold text-lg">
                             <button 
                                 onClick={() => setIsStreakModalOpen(true)}
-                                className={`flex items-center gap-1 text-orange-400 hover:text-orange-300 transition-all ${streakIncreased ? 'scale-125 animate-ping-once' : ''}`}
+                                className="flex items-center gap-1 text-orange-400 hover:text-orange-300 transition-all relative"
                             >
-                                <Icon name="Flame" color="currentColor" className={data.streak > 0 ? 'animate-pulse-glow' : ''} />
-                                <span>{data.streak}</span>
+                                <div className={`transition-all duration-300 flex items-center gap-1 ${streakIncreased ? 'scale-125 text-orange-500 drop-shadow-[0_0_8px_rgba(255,165,0,0.8)]' : ''}`}>
+                                    <Icon name="Flame" color="currentColor" className={data.streak > 0 ? 'animate-pulse-glow' : ''} />
+                                    <span>{data.streak}</span>
+                                </div>
+                                {/* Animación Flotante del +1 */}
+                                {streakIncreased && (
+                                    <span className="absolute -top-4 left-6 text-orange-500 font-black text-lg animate-float-up pointer-events-none">
+                                        +1
+                                    </span>
+                                )}
                             </button>
                             <div className="flex items-center gap-1 text-duoblue">
                                 <Icon name="CheckCircle" color="currentColor" />
@@ -444,6 +537,10 @@
             };
 
             const renderRoutinePanel = () => {
+                const todayStr = new Date().toDateString();
+                const completedPhases = data.routineProgress?.[todayStr] || [];
+                const totalPhases = planDetails.phases.length;
+
                 return (
                     <div className="mb-8 mt-2">
                         <div 
@@ -457,7 +554,7 @@
                                     </div>
                                     <div>
                                         <h2 className="font-bold text-lg text-white">{currentPlan.name}</h2>
-                                        <p className="text-sm text-white/80 font-medium">Toca para ver la rutina de hoy</p>
+                                        <p className="text-sm text-white/80 font-medium">Toca para marcar tu rutina de hoy</p>
                                     </div>
                                 </div>
                                 <div className="text-white bg-black/20 p-1 rounded-full">
@@ -473,12 +570,35 @@
                                     <p className="text-sm text-duotext mb-4">{planDetails.description}</p>
                                     
                                     <div className="flex flex-col gap-3">
-                                        {planDetails.phases.map((phase, idx) => (
-                                            <div key={idx} className="bg-darker p-3 rounded-xl border border-duogray/50">
-                                                <h4 className="font-bold text-sm text-white mb-1">{phase.name}</h4>
-                                                <p className="text-xs text-duotext leading-relaxed">{phase.desc}</p>
-                                            </div>
-                                        ))}
+                                        {planDetails.phases.map((phase, idx) => {
+                                            const isCompleted = completedPhases.includes(idx);
+                                            
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => toggleRoutinePhase(todayStr, idx, totalPhases)}
+                                                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 select-none ${
+                                                        isCompleted 
+                                                        ? 'bg-duogreen/10 border-duogreen/50' 
+                                                        : 'bg-darker border-duogray/50 hover:border-duogray'
+                                                    }`}
+                                                >
+                                                    <div className={`mt-0.5 w-6 h-6 rounded flex items-center justify-center shrink-0 border-2 transition-colors ${
+                                                        isCompleted 
+                                                        ? 'bg-duogreen border-duogreen text-white shadow-[0_0_8px_rgba(88,204,2,0.4)]' 
+                                                        : 'border-duogray text-transparent'
+                                                    }`}>
+                                                        <Icon name="Check" size={16} strokeWidth={3} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className={`font-bold text-sm mb-1 transition-colors ${isCompleted ? 'text-duogreen' : 'text-white'}`}>
+                                                            {phase.name}
+                                                        </h4>
+                                                        <p className="text-xs text-duotext leading-relaxed">{phase.desc}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
@@ -591,7 +711,6 @@
                                 );
                             })}
                             
-                            {/* --- TROFEO FINAL DE CURSO --- */}
                             {(() => {
                                 const isSilver = completedInLevel.length === TOTAL_CLASSES;
                                 const isGold = reviewsInLevel.length === TOTAL_CLASSES;
@@ -737,7 +856,14 @@
                     }
                     row.push(current.trim());
                     if (row.length >= 4) {
-                        parsedData.push({ id: parseInt(row[0]), title: row[1].replace(/^"|"$/g, ''), videoUrl: row[2], videoId: row[3] });
+                        parsedData.push({ 
+                            id: parseInt(row[0]), 
+                            title: row[1].replace(/^"|"$/g, ''), 
+                            videoUrl: row[2], 
+                            videoId: row[3],
+                            // Nueva Lógica: Si el usuario agrega una séptima columna (índice 6), la usamos como descripción.
+                            description: row[6] ? row.slice(6).join(',').replace(/^"|"$/g, '') : null 
+                        });
                     }
                 }
                 return parsedData;
@@ -921,7 +1047,15 @@
                                 </button>
                             </div>
 
-                            <div className="flex gap-2 mb-2">
+                            {/* Mostrar Descripción del CSV si existe */}
+                            {courseInfo && courseInfo.description && (
+                                <div className="bg-darker p-3 rounded-xl border border-duogray mb-1">
+                                    <h4 className="text-xs font-bold text-duotext mb-1 uppercase tracking-wider">Notas de la Clase</h4>
+                                    <p className="text-sm text-white/90 whitespace-pre-wrap">{courseInfo.description}</p>
+                                </div>
+                            )}
+
+                            <div className="flex gap-2 mb-2 mt-1">
                                 <a 
                                     href={ytClassLink} 
                                     target="_blank" 
