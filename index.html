@@ -186,15 +186,17 @@
             return parsedData;
         };
 
-        // --- DATOS DEL CURSO ---
+        // --- DATOS DEL CURSO Y TIEMPOS PRECISOS ---
         const PLAYLISTS = {
             beginner: 'PLAz9gX__ElWpQ0wYCzec4AenQ91t3n7jT',
             intermediate: 'PLAz9gX__ElWorwvQHOLm-bvFigMyDvuX2',
             advanced: 'PLAz9gX__ElWrCO8O3zRRMOwj2Bk5QtXTx'
         };
         const TOTAL_CLASSES = 195;
-        const CLASS_DURATION = 60;
-        const REVIEW_DURATION = 18;
+        // Calculado exactamente: 49 minutos + (31 segundos / 60)
+        const CLASS_DURATION = 49 + (31 / 60); 
+        // Calculado exactamente: 18 minutos + (12 segundos / 60)
+        const REVIEW_DURATION = 18 + (12 / 60); 
 
         const MOTIVATIONAL_QUOTES = [
             "La práctica distribuida mejora la retención a largo plazo en un 200%.",
@@ -298,7 +300,6 @@
 
             React.useEffect(() => { localStorage.setItem('lingoTubeData', JSON.stringify(data)); }, [data]);
 
-            // NUEVA CACHÉ V5: Esto fuerza a todos los navegadores a descargar de GitHub tu nuevo CSV completo.
             const [courseData, setCourseData] = React.useState(() => {
                 const saved = localStorage.getItem('lingoTubeCourseData_v5');
                 const defaultData = { beginner: [], intermediate: [], advanced: [], beginnerReview: [], intermediateReview: [], advancedReview: [] };
@@ -457,7 +458,6 @@
                 reader.readAsText(file);
             };
 
-            // FUNCION DE SINCRONIZACION RESTAURADA COMPLETAMENTE
             const syncFromServer = async () => {
                 const CSV_LEVELS = ['beginner', 'intermediate', 'advanced', 'beginnerReview', 'intermediateReview', 'advancedReview'];
                 let loadedAny = false;
@@ -891,21 +891,77 @@
 
                 return (
                     <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
-                        <h1 className="text-2xl font-bold mb-6">Tu Progreso Global</h1>
-                        <div className="grid grid-cols-2 gap-4 mb-6">
-                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray"><Icon name="CheckCircle" className="mb-2" color="#58cc02" size={32} /><div className="text-2xl font-bold">{totalClassesDone}</div><div className="text-sm text-duotext">Clases Listas</div></div>
-                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray"><Icon name="RotateCw" className="mb-2" color="#ffc800" size={32} /><div className="text-2xl font-bold">{totalReviewsDone}</div><div className="text-sm text-duotext">Repasos Listos</div></div>
-                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray"><Icon name="Clock" className="mb-2" color="#1cb0f6" size={32} /><div className="text-2xl font-bold">{hoursDone}h</div><div className="text-sm text-duotext">Tiempo Invertido</div></div>
-                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray"><Icon name="Calendar" className="mb-2" color="#ff4b4b" size={32} /><div className="text-2xl font-bold">{hoursLeft}h</div><div className="text-sm text-duotext">Tiempo Restante</div></div>
+                        <div className="mb-6">
+                            <h1 className="text-2xl font-bold text-white mb-1">Tu Progreso Global</h1>
+                            <p className="text-sm text-duotext leading-relaxed">Resumen de tu esfuerzo y tiempo estimado para alcanzar la fluidez total.</p>
                         </div>
-                        <div className="bg-surface rounded-2xl p-5 mb-6">
-                            <h2 className="font-bold mb-4">Detalle por Nivel</h2>
-                            {[{ name: 'Principiante', done: bDone, rev: brDone }, { name: 'Intermedio', done: iDone, rev: irDone }, { name: 'Avanzado', done: aDone, rev: arDone }].map(l => (
-                                <div key={l.name} className="mb-4 last:mb-0">
-                                    <div className="flex justify-between mb-1 text-sm font-bold"><span>{l.name}</span><span className="text-duotext">{l.done}/{TOTAL_CLASSES}</span></div>
-                                    <div className="h-3 w-full bg-darker rounded-full overflow-hidden relative">
-                                        <div className="absolute top-0 left-0 h-full bg-duogreen transition-all duration-500" style={{ width: `${(l.done/TOTAL_CLASSES)*100}%` }}></div>
-                                        <div className="absolute top-0 left-0 h-full bg-duogold transition-all duration-500" style={{ width: `${(l.rev/TOTAL_CLASSES)*100}%` }}></div>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray flex flex-col justify-between shadow-sm">
+                                <Icon name="CheckCircle" className="mb-2" color="#58cc02" size={32} />
+                                <div>
+                                    <div className="text-2xl font-black text-white">{totalClassesDone}</div>
+                                    <div className="text-[11px] font-bold text-duotext uppercase mt-1 tracking-wider">Clases Listas</div>
+                                    <div className="text-[11px] text-duogreen mt-1 font-medium">{Math.round((totalClassesDone/totalClasses)*100)}% de {totalClasses}</div>
+                                </div>
+                            </div>
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray flex flex-col justify-between shadow-sm">
+                                <Icon name="RotateCw" className="mb-2" color="#ffc800" size={32} />
+                                <div>
+                                    <div className="text-2xl font-black text-white">{totalReviewsDone}</div>
+                                    <div className="text-[11px] font-bold text-duotext uppercase mt-1 tracking-wider">Repasos Listos</div>
+                                    <div className="text-[11px] text-duogold mt-1 font-medium">{Math.round((totalReviewsDone/totalClasses)*100)}% de {totalClasses}</div>
+                                </div>
+                            </div>
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray flex flex-col justify-between shadow-sm">
+                                <Icon name="Clock" className="mb-2" color="#1cb0f6" size={32} />
+                                <div>
+                                    <div className="text-2xl font-black text-white">{hoursDone}<span className="text-lg">h</span></div>
+                                    <div className="text-[11px] font-bold text-duotext uppercase mt-1 tracking-wider">Horas Estudiadas</div>
+                                    <div className="text-[11px] text-duoblue mt-1 font-medium">Tiempo real invertido</div>
+                                </div>
+                            </div>
+                            <div className="bg-surface p-4 rounded-2xl border-2 border-duogray flex flex-col justify-between shadow-sm">
+                                <Icon name="Target" className="mb-2" color="#ff4b4b" size={32} />
+                                <div>
+                                    <div className="text-2xl font-black text-white">{hoursLeft}<span className="text-lg">h</span></div>
+                                    <div className="text-[11px] font-bold text-duotext uppercase mt-1 tracking-wider">Horas Restantes</div>
+                                    <div className="text-[11px] text-[#ff4b4b] mt-1 font-medium">Para terminar todo</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-darker border border-duogray/50 p-4 rounded-2xl mb-6 shadow-inner">
+                            <h4 className="flex items-center gap-2 text-sm font-bold text-white mb-2">
+                                <Icon name="Info" size={16} className="text-duoblue" /> ¿Cómo se calcula?
+                            </h4>
+                            <p className="text-xs text-duotext leading-relaxed">
+                                Tus tiempos se calculan usando la duración promedio exacta de cada contenido:<br/>
+                                • <strong className="text-white">Clase principal:</strong> 49 min y 31 seg.<br/>
+                                • <strong className="text-white">Repaso (bloque 2):</strong> 18 min y 12 seg.
+                            </p>
+                        </div>
+
+                        <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
+                            <h2 className="font-bold mb-4 text-white text-lg">Avance por Nivel</h2>
+                            {[{ name: 'Principiante', done: bDone, rev: brDone, colorDone: 'bg-duogreen', colorRev: 'bg-duogreenDark' }, 
+                              { name: 'Intermedio', done: iDone, rev: irDone, colorDone: 'bg-duoblue', colorRev: 'bg-duoblueDark' }, 
+                              { name: 'Avanzado', done: aDone, rev: arDone, colorDone: 'bg-orange-500', colorRev: 'bg-orange-600' }].map(l => (
+                                <div key={l.name} className="mb-5 last:mb-0">
+                                    <div className="flex justify-between mb-2 text-sm font-bold">
+                                        <span className="text-white">{l.name}</span>
+                                        <span className="text-duotext text-xs bg-darker px-2 py-0.5 rounded-full border border-duogray">{l.done} / {TOTAL_CLASSES} Clases</span>
+                                    </div>
+                                    {/* Barra de progreso combinada */}
+                                    <div className="h-4 w-full bg-darker rounded-full overflow-hidden relative border border-duogray/30">
+                                        {/* Clases (Fondo) */}
+                                        <div className={`absolute top-0 left-0 h-full ${l.colorDone} transition-all duration-500 opacity-50`} style={{ width: `${(l.done/TOTAL_CLASSES)*100}%` }}></div>
+                                        {/* Repasos (Frente, más opaco/brillante para distinguirlo) */}
+                                        <div className={`absolute top-0 left-0 h-full ${l.colorDone} transition-all duration-500 border-r-2 border-white/30`} style={{ width: `${(l.rev/TOTAL_CLASSES)*100}%` }}></div>
+                                    </div>
+                                    <div className="flex justify-between mt-1 px-1">
+                                        <span className="text-[10px] text-duotext flex items-center gap-1"><span className={`w-2 h-2 rounded-full opacity-50 ${l.colorDone}`}></span> Clases: {Math.round((l.done/TOTAL_CLASSES)*100)}%</span>
+                                        <span className="text-[10px] text-duotext flex items-center gap-1"><span className={`w-2 h-2 rounded-full ${l.colorDone}`}></span> Repasos: {Math.round((l.rev/TOTAL_CLASSES)*100)}%</span>
                                     </div>
                                 </div>
                             ))}
