@@ -479,71 +479,6 @@
             return 0;
         };
         
-        // COMPONENTE TARJETA DE MARCADORES (REPASAR)
-        const BookmarkCard = ({ lvl, classId, note, chunks, displayTitle, toggleBookmark, setCurrentLevel, setSelectedClass, saveChunk, saveNote, setFullScreenEdit }) => {
-            const [expanded, setExpanded] = React.useState(false);
-            const classKey = `${lvl.key}-${classId}`;
-            return (
-                <div className="bg-surface border-2 border-orange-500/30 rounded-2xl p-4 transition-all shadow-md animate-[slideUp_0.3s_ease-out]">
-                    <div className="flex justify-between items-start mb-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-                        <div className="flex-1">
-                            <span className={`text-xs font-bold uppercase tracking-wider ${lvl.color} ${lvl.bg} px-2 py-1 rounded-md inline-block mb-1`}>{lvl.label} • #{classId}</span>
-                            <h3 className="font-bold text-white leading-tight pr-2">{displayTitle}</h3>
-                        </div>
-                        <div className="flex gap-2">
-                            <Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={20} className="text-duotext" />
-                            <div onClick={(e) => { e.stopPropagation(); toggleBookmark(lvl.key, classId); }}>
-                                <Icon name="Bookmark" size={20} color="#f97316"/>
-                            </div>
-                        </div>
-                    </div>
-
-                    {expanded ? (
-                        <div className="mt-4 animate-[slideUp_0.2s_ease-out]">
-                            <div className="bg-darker p-3 rounded-2xl border border-purple-500/30 mb-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="flex items-center gap-2 text-sm font-bold text-purple-400">
-                                        <Icon name="Zap" size={16} /> Estructuras / Chunks
-                                    </label>
-                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'chunks' })} className="flex items-center gap-1 text-[10px] bg-purple-500/20 px-2 py-1 rounded text-purple-300 hover:bg-purple-500/40 transition-colors uppercase tracking-wider font-bold">
-                                        <Icon name="Maximize2" size={12} /> Expandir
-                                    </button>
-                                </div>
-                                <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 resize-none h-20 font-mono text-[13px]" placeholder="Ej. ==cost an arm and a leg==" value={chunks} onChange={(e) => saveChunk(classKey, e.target.value)}></textarea>
-                            </div>
-                            <div className="bg-darker p-3 rounded-2xl border border-duogray/50">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="flex items-center gap-2 text-sm font-bold text-duotext">
-                                        <Icon name="BookOpen" size={16} /> Mis Notas
-                                    </label>
-                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'notes' })} className="flex items-center gap-1 text-[10px] bg-white/10 px-2 py-1 rounded text-white/70 hover:bg-white/20 transition-colors uppercase tracking-wider font-bold">
-                                        <Icon name="Maximize2" size={12} /> Expandir
-                                    </button>
-                                </div>
-                                <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-20 text-[14px]" placeholder="Escribe tus apuntes libres aquí..." value={note} onChange={(e) => saveNote(classKey, e.target.value)}></textarea>
-                            </div>
-                            <button className="mt-4 duo-btn w-full bg-duoblue text-white font-bold py-3 rounded-xl text-sm" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>Ir a la clase completa</button>
-                        </div>
-                    ) : (
-                        <div className="mt-3 cursor-pointer" onClick={() => setExpanded(true)}>
-                            {chunks && (
-                                <div className="bg-dark p-2.5 rounded-xl border border-purple-500/20 mb-2">
-                                    <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mb-1"><Icon name="Zap" size={12} /> Chunks:</div>
-                                    <div className="text-sm text-purple-100/90 line-clamp-2 font-mono text-[13px] whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(chunks)} />
-                                </div>
-                            )}
-                            {note && (
-                                <div className="bg-darker p-2.5 rounded-xl border border-duogray/50">
-                                    <div className="flex items-center gap-1 text-xs font-bold text-duotext mb-1"><Icon name="BookOpen" size={12} /> Apuntes:</div>
-                                    <div className="text-sm text-white/80 line-clamp-2 leading-snug whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(note)} />
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
         const App = () => {
             const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData, syncFromServer } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
@@ -868,7 +803,40 @@
                                     const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${classId}`;
                                     const note = data.notes[`${lvl.key}-${classId}`] || '';
                                     const chunks = data.chunks[`${lvl.key}-${classId}`] || '';
-                                    return <BookmarkCard key={`${lvl.key}-${classId}`} lvl={lvl} classId={classId} note={note} chunks={chunks} displayTitle={displayTitle} toggleBookmark={toggleBookmark} setCurrentLevel={setCurrentLevel} setSelectedClass={setSelectedClass} saveChunk={saveChunk} saveNote={saveNote} setFullScreenEdit={setFullScreenEdit} />;
+                                    
+                                    // REEMPLAZO DEL COMPONENTE BOOKMARKCARD POR CODIGO INLINE PARA EVITAR ERROR REACT #310
+                                    const classKey = `${lvl.key}-${classId}`;
+                                    return (
+                                        <div key={`${lvl.key}-${classId}`} className="bg-surface border-2 border-orange-500/30 rounded-2xl p-4 transition-all shadow-md animate-[slideUp_0.3s_ease-out]">
+                                            <div className="flex justify-between items-start mb-2 cursor-pointer" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>
+                                                <div className="flex-1">
+                                                    <span className={`text-xs font-bold uppercase tracking-wider ${lvl.color} ${lvl.bg} px-2 py-1 rounded-md inline-block mb-1`}>{lvl.label} • #{classId}</span>
+                                                    <h3 className="font-bold text-white leading-tight pr-2">{displayTitle}</h3>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <div onClick={(e) => { e.stopPropagation(); toggleBookmark(lvl.key, classId); }}>
+                                                        <Icon name="Bookmark" size={20} color="#f97316"/>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-3 cursor-pointer" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>
+                                                {chunks && (
+                                                    <div className="bg-dark p-2.5 rounded-xl border border-purple-500/20 mb-2">
+                                                        <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mb-1"><Icon name="Zap" size={12} /> Chunks:</div>
+                                                        <div className="text-sm text-purple-100/90 line-clamp-2 font-mono text-[13px] whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(chunks)} />
+                                                    </div>
+                                                )}
+                                                {note && (
+                                                    <div className="bg-darker p-2.5 rounded-xl border border-duogray/50">
+                                                        <div className="flex items-center gap-1 text-xs font-bold text-duotext mb-1"><Icon name="BookOpen" size={12} /> Apuntes:</div>
+                                                        <div className="text-sm text-white/80 line-clamp-2 leading-snug whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(note)} />
+                                                    </div>
+                                                )}
+                                                <div className="text-center mt-2 text-[10px] font-bold text-duoblue uppercase tracking-wider">Toca para abrir clase y editar</div>
+                                            </div>
+                                        </div>
+                                    );
                                 }))}
                             </div>
                         )}
@@ -1119,7 +1087,7 @@
                                 </button>
                             </div>
 
-                            {/* NUEVO: RECUADRO DE CHUNKS CON BOTON DE EXPANSION */}
+                            {/* RECUADRO DE CHUNKS CON BOTON DE EXPANSION */}
                             <div className="mt-2 bg-darker p-3 rounded-2xl border border-purple-500/30">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="flex items-center gap-2 text-sm font-bold text-purple-400">
@@ -1132,7 +1100,7 @@
                                 <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 resize-none h-16 font-mono text-[13px]" placeholder="Ej. ==cost an arm and a leg==" value={chunk} onChange={(e) => saveChunk(classKey, e.target.value)}></textarea>
                             </div>
 
-                            {/* NUEVO: RECUADRO DE NOTAS CON BOTON DE EXPANSION */}
+                            {/* RECUADRO DE NOTAS CON BOTON DE EXPANSION */}
                             <div className="mt-2 bg-darker p-3 rounded-2xl border border-duogray/50">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="flex items-center gap-2 text-sm font-bold text-duotext">
