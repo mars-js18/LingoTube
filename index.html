@@ -110,16 +110,16 @@
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                // Subrayado ==texto==
-                .replace(/==(.*?)==/g, '<mark class="bg-yellow-500/80 text-darker font-bold rounded px-1.5 py-0.5 shadow-sm">$1</mark>')
+                // Subrayado ==texto== (Acepta saltos de línea dentro)
+                .replace(/==([\s\S]*?)==/g, '<mark class="bg-yellow-500/80 text-darker font-bold rounded px-1.5 py-0.5 shadow-sm">$1</mark>')
                 // Negrita *texto*
-                .replace(/\*(.*?)\*/g, '<strong class="font-bold text-white">$1</strong>')
+                .replace(/\*([\s\S]*?)\*/g, '<strong class="font-bold text-white">$1</strong>')
                 // Cursiva _texto_
-                .replace(/_(.*?)_/g, '<em class="italic text-duoblue">$1</em>');
+                .replace(/_([\s\S]*?)_/g, '<em class="italic text-duoblue">$1</em>');
             return { __html: html };
         };
 
-        // --- LECTOR DE CSV INTELIGENTE (Soporta saltos de línea dentro de las comillas) ---
+        // --- LECTOR DE CSV INTELIGENTE (Soporta saltos de línea dentro de las comillas y es aprueba de errores) ---
         const parseCSVText = (text) => {
             const parsedData = [];
             let inQuotes = false;
@@ -147,7 +147,8 @@
                             title: row[1] ? row[1].trim() : '',
                             videoUrl: row[2] ? row[2].trim() : '',
                             videoId: row[3] ? row[3].trim() : '',
-                            description: row[6] ? row[6].trim() : null // Columna 7: Descripción / Apuntes
+                            // Recopila todo lo que haya después de la columna 5 por si hay comas sin comillas
+                            description: row.length > 6 && row[6] ? row.slice(6).join(',').trim() : null
                         });
                     }
                     row = [];
@@ -164,7 +165,7 @@
                         title: row[1] ? row[1].trim() : '',
                         videoUrl: row[2] ? row[2].trim() : '',
                         videoId: row[3] ? row[3].trim() : '',
-                        description: row[6] ? row[6].trim() : null
+                        description: row.length > 6 && row[6] ? row.slice(6).join(',').trim() : null
                     });
                 }
             }
@@ -284,12 +285,13 @@
             React.useEffect(() => { localStorage.setItem('lingoTubeData', JSON.stringify(data)); }, [data]);
 
             const [courseData, setCourseData] = React.useState(() => {
-                const saved = localStorage.getItem('lingoTubeCourseData');
+                // NOTA IMPORTANTE: Hemos cambiado la clave de caché a 'V2' para forzar la actualización de tus descripciones largas.
+                const saved = localStorage.getItem('lingoTubeCourseDataV2');
                 const defaultData = { beginner: [], intermediate: [], advanced: [], beginnerReview: [], intermediateReview: [], advancedReview: [] };
                 return saved ? { ...defaultData, ...JSON.parse(saved) } : defaultData;
             });
 
-            React.useEffect(() => { localStorage.setItem('lingoTubeCourseData', JSON.stringify(courseData)); }, [courseData]);
+            React.useEffect(() => { localStorage.setItem('lingoTubeCourseDataV2', JSON.stringify(courseData)); }, [courseData]);
 
             const updateCourseData = (levelKey, levelData) => setCourseData(prev => ({ ...prev, [levelKey]: levelData }));
 
@@ -861,6 +863,7 @@
                 <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
                     <h1 className="text-2xl font-bold mb-6">Configuración y Perfil</h1>
                     
+                    {/* BACKUP & RESTORE SECTION */}
                     <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="bg-duogreen/20 p-2 rounded-xl text-duogreen"><Icon name="Save" size={24} /></div>
@@ -878,6 +881,7 @@
                         </div>
                     </div>
 
+                    {/* CSV UPLOAD SECTION */}
                     <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -960,7 +964,7 @@
                                 </div>
                             </div>
 
-                            {/* NUEVO: RECUADRO DE APUNTES CON EXPANSION A MODAL COMPLETO */}
+                            {/* RECUADRO DE APUNTES CON EXPANSION A MODAL COMPLETO */}
                             {courseInfo && courseInfo.description && (
                                 <div className="bg-darker p-4 rounded-xl border border-duoblue/30 mb-1 cursor-pointer hover:border-duoblue transition-colors shadow-sm group" onClick={() => setFullScreenNoteText(courseInfo.description)}>
                                     <div className="flex justify-between items-center mb-2">
