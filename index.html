@@ -78,7 +78,7 @@
             overflow: hidden;
         }
         .routine-panel.open {
-            max-height: 1000px;
+            max-height: 2500px;
             opacity: 1;
         }
         
@@ -257,7 +257,9 @@
                         lastActiveDate: null,
                         completed: { beginner: [], intermediate: [], advanced: [] },
                         reviews: { beginner: [], intermediate: [], advanced: [] },
+                        bookmarks: { beginner: [], intermediate: [], advanced: [] },
                         notes: {},
+                        chunks: {}, // NUEVO: Para Lexical Chunks
                         routineProgress: {},
                         streakFreezes: 3,
                         lastFreezeRefillMonth: new Date().toISOString().slice(0, 7) // Ej. "2023-10"
@@ -265,6 +267,8 @@
                 } else {
                     // Migraciones para usuarios existentes
                     if (!parsed.routineProgress) parsed.routineProgress = {};
+                    if (!parsed.bookmarks) parsed.bookmarks = { beginner: [], intermediate: [], advanced: [] };
+                    if (!parsed.chunks) parsed.chunks = {};
                     if (parsed.streakFreezes === undefined) {
                         parsed.streakFreezes = 3;
                         parsed.lastFreezeRefillMonth = new Date().toISOString().slice(0, 7);
@@ -343,7 +347,7 @@
             const updateActivity = () => {
                 const today = new Date().toDateString();
                 setData(prev => {
-                    if (prev.lastActiveDate === today) return prev; // Ya actuó hoy, no incrementa más
+                    if (prev.lastActiveDate === today) return prev; 
                     
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
@@ -365,7 +369,6 @@
 
             const toggleProgress = (level, classId, type) => {
                 updateActivity();
-                
                 setData(prev => {
                     const isDone = prev[type][level].includes(classId);
                     const newState = { ...prev };
@@ -395,6 +398,21 @@
                         }
                     }
                     return newState;
+                });
+            };
+
+            const toggleBookmark = (level, classId) => {
+                setData(prev => {
+                    const isBookmarked = prev.bookmarks[level].includes(classId);
+                    return {
+                        ...prev,
+                        bookmarks: {
+                            ...prev.bookmarks,
+                            [level]: isBookmarked 
+                                ? prev.bookmarks[level].filter(id => id !== classId)
+                                : [...prev.bookmarks[level], classId]
+                        }
+                    };
                 });
             };
 
@@ -431,7 +449,16 @@
                 }));
             };
 
-            return { data, toggleProgress, toggleRoutinePhase, saveNote, courseData, updateCourseData, streakIncreased };
+            // Guardar Lexical Chunks Específicos
+            const saveChunk = (classKey, text) => {
+                updateActivity();
+                setData(prev => ({
+                    ...prev,
+                    chunks: { ...(prev.chunks || {}), [classKey]: text }
+                }));
+            };
+
+            return { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased };
         }
 
         const getOffset = (index) => {
@@ -445,11 +472,12 @@
         };
 
         const App = () => {
-            const { data, toggleProgress, toggleRoutinePhase, saveNote, courseData, updateCourseData, streakIncreased } = useAppStore();
+            const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState('beginner');
             const [selectedClass, setSelectedClass] = React.useState(null);
             const [isRoutineOpen, setIsRoutineOpen] = React.useState(false);
+            const [isCourseInfoOpen, setIsCourseInfoOpen] = React.useState(false); // NUEVO ESTADO PARA INFO CURSO
             const [isStreakModalOpen, setIsStreakModalOpen] = React.useState(false);
             const [dailyQuote, setDailyQuote] = React.useState('');
             const [streakQuote, setStreakQuote] = React.useState('');
@@ -462,14 +490,12 @@
                 setStreakQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
             }, []);
 
-            // Efecto para abrir el Modal automáticamente cuando sube la racha
             React.useEffect(() => {
                 if (streakIncreased) {
                     setIsStreakModalOpen(true);
                 }
             }, [streakIncreased]);
 
-            // Efecto de Auto-Scroll a la lección activa
             React.useEffect(() => {
                 if (currentTab === 'learn' && activeNodeRef.current) {
                     setTimeout(() => {
@@ -478,14 +504,10 @@
                 }
             }, [currentTab, currentLevel]);
 
-            // Lógica para detectar si se hizo scroll (mostrar botón subir)
             React.useEffect(() => {
                 const handleScroll = () => {
-                    if (window.scrollY > 300) {
-                        setShowScrollTop(true);
-                    } else {
-                        setShowScrollTop(false);
-                    }
+                    if (window.scrollY > 300) setShowScrollTop(true);
+                    else setShowScrollTop(false);
                 };
                 window.addEventListener('scroll', handleScroll);
                 return () => window.removeEventListener('scroll', handleScroll);
@@ -517,7 +539,6 @@
                                     <Icon name="Flame" color="currentColor" className={data.streak > 0 ? 'animate-pulse-glow' : ''} />
                                     <span>{data.streak}</span>
                                 </div>
-                                {/* Animación Flotante del +1 */}
                                 {streakIncreased && (
                                     <span className="absolute -top-4 left-6 text-orange-500 font-black text-lg animate-float-up pointer-events-none">
                                         +1
@@ -557,7 +578,6 @@
                         <h2 className="text-4xl font-black text-white mt-6 mb-2">{streak} {streak === 1 ? 'Día' : 'Días'}</h2>
                         <p className="text-lg font-bold text-orange-400 mb-8 tracking-wide uppercase">¡Racha actual!</p>
 
-                        {/* Semana Visual */}
                         <div className="bg-surface border-2 border-duogray rounded-3xl p-6 w-full max-w-sm mb-6 shadow-2xl">
                             <div className="flex justify-between items-center w-full">
                                 {daysOfWeek.map((dayLabel, idx) => {
@@ -582,7 +602,6 @@
                             </div>
                         </div>
 
-                        {/* TARJETA DE COMODINES DE RACHA */}
                         <div className="bg-surface border-2 border-duogray rounded-2xl p-4 w-full max-w-sm mb-6 flex items-center justify-between shadow-lg">
                             <div className="flex items-center gap-3">
                                 <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400">
@@ -610,13 +629,82 @@
                 );
             };
 
+            const renderCourseInfoPanel = () => {
+                return (
+                    <div className="mb-8 mt-2">
+                        {/* Cabecera Clickable */}
+                        <div 
+                            className={`rounded-2xl p-4 shadow-lg border-b-4 cursor-pointer transition-all bg-gradient-to-r from-duoblue to-purple-600 ${isCourseInfoOpen ? 'border-b-0 mb-1 rounded-b-none' : 'border-black/30'}`}
+                            onClick={() => setIsCourseInfoOpen(!isCourseInfoOpen)}
+                        >
+                            <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-black/20 p-2 rounded-xl text-white">
+                                        <Icon name="Trophy" size={24} />
+                                    </div>
+                                    <div>
+                                        <h2 className="font-bold text-lg text-white">Tu Camino a la Fluidez</h2>
+                                        <p className="text-sm text-white/80 font-medium">¿Qué enseña cada nivel? (A1 ➔ C1)</p>
+                                    </div>
+                                </div>
+                                <div className="text-white bg-black/20 p-1 rounded-full">
+                                    <Icon name={isCourseInfoOpen ? "ChevronUp" : "ChevronDown"} size={20} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Contenido Expansible */}
+                        <div className={`bg-surface rounded-b-2xl border-2 border-t-0 border-surface shadow-lg px-4 ${isCourseInfoOpen ? 'py-5' : 'py-0 h-0 border-transparent overflow-hidden'} transition-all duration-300 ease-in-out`}>
+                            {isCourseInfoOpen && (
+                                <div className="animate-[slideUp_0.3s_ease-out] text-white/90">
+                                    
+                                    {/* Sección 1: Teoría */}
+                                    <h3 className="font-bold text-lg text-duoblue mb-3 border-b border-duogray pb-2">1. Nivel Teórico y Receptivo (Comprensión C1)</h3>
+                                    <p className="text-sm text-duotext mb-4">La progresión está diseñada para llevarte a un nivel avanzado alto (C1) en comprensión auditiva y lectora.</p>
+                                    
+                                    <div className="flex flex-col gap-3 mb-6">
+                                        <div className="bg-darker p-3 rounded-xl border-l-4 border-duogreen">
+                                            <h4 className="font-bold text-sm text-white mb-1">🌱 Curso Básico (A1-A2)</h4>
+                                            <p className="text-xs text-duotext leading-relaxed">Bases de supervivencia. Cubre el verbo <i>to be</i>, preposiciones, presente simple, pasado, <i>there is/are</i> y vocabulario fundacional (Ej. "I caught a taxi because there were no buses").</p>
+                                        </div>
+                                        <div className="bg-darker p-3 rounded-xl border-l-4 border-duoblue">
+                                            <h4 className="font-bold text-sm text-white mb-1">🌊 Curso Intermedio (B1-B2)</h4>
+                                            <p className="text-xs text-duotext leading-relaxed">Introduce tiempos perfectos, modales, comparativos, condicionales y automatización de preguntas indirectas (Ej. "Do you know how big London is?").</p>
+                                        </div>
+                                        <div className="bg-darker p-3 rounded-xl border-l-4 border-orange-500">
+                                            <h4 className="font-bold text-sm text-white mb-1">🔥 Curso Avanzado (B2-C1)</h4>
+                                            <p className="text-xs text-duotext leading-relaxed">Vocabulario y gramática genuinamente avanzados. Inversiones gramaticales (<i>"Never have I been to..."</i>), condicionales avanzados sin "if" (<i>"Had I known..."</i>), modales perfectos, Phrasal Verbs y expresiones idiomáticas complejas (<i>"cost an arm and a leg"</i>).</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Sección 2: Fluidez */}
+                                    <h3 className="font-bold text-lg text-purple-400 mb-3 border-b border-duogray pb-2">2. Nivel Productivo (Fluidez Oral B2/C1)</h3>
+                                    <p className="text-sm text-duotext mb-4">
+                                        Si solo escuchas y repites pasivamente sufrirás la <strong>"Brecha Receptiva-Productiva"</strong>: entenderás un C1 pero tu boca estará estancada en un A2. Traducirás mentalmente y te detendrás abruptamente por falta de palabras.
+                                    </p>
+                                    <p className="text-sm text-duotext mb-4">
+                                        <strong className="text-white">Al aplicar tu rutina extra (Shadowing, 4/3/2, Interacción):</strong> Forzarás el proceso de <i>"proceduralización"</i>, convirtiendo la teoría en reflejos musculares instantáneos. Fusionarás los <b>Lexical Chunks</b> como unidades indivisibles y superarás la carga cognitiva que te hace tartamudear.
+                                    </p>
+
+                                    <div className="bg-gradient-to-r from-duogreen/20 to-duoblue/20 p-4 rounded-xl border border-duogreen/50">
+                                        <h4 className="font-bold text-sm text-white mb-1 flex items-center gap-2"><Icon name="Target" size={16}/> Conclusión General</h4>
+                                        <p className="text-xs text-white/90 leading-relaxed">Terminar los tres cursos y aplicar la rutina forzada ("output") te dará un <strong>nivel C1 en comprensión y un nivel B2 muy sólido (rozando C1) en fluidez oral</strong>. Te comunicarás con la naturalidad y arquitectura argumentativa de un hablante competente.</p>
+                                    </div>
+
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
             const renderRoutinePanel = () => {
                 const todayStr = new Date().toDateString();
                 const completedPhases = data.routineProgress?.[todayStr] || [];
                 const totalPhases = planDetails.phases.length;
 
                 return (
-                    <div className="mb-8 mt-2">
+                    <div className="mb-8">
                         <div 
                             className={`rounded-2xl p-4 shadow-lg border-b-4 cursor-pointer transition-all ${currentPlan.color} ${isRoutineOpen ? 'border-b-0 mb-1 rounded-b-none' : 'border-black/30'}`}
                             onClick={() => setIsRoutineOpen(!isRoutineOpen)}
@@ -694,6 +782,7 @@
                 return (
                     <div className="pb-24 pt-20 px-4 max-w-md mx-auto relative">
                         
+                        {renderCourseInfoPanel()}
                         {renderRoutinePanel()}
 
                         <div className="flex bg-surface rounded-2xl p-1 mb-8 shadow-lg">
@@ -725,7 +814,8 @@
                                 const isClassCompleted = completedInLevel.includes(cls);
                                 const isReviewCompleted = reviewsInLevel.includes(cls);
                                 const isCurrent = cls === nextUp;
-                                const hasNote = !!data.notes[`${currentLevel}-${cls}`];
+                                const isBookmarked = data.bookmarks[currentLevel].includes(cls);
+                                const hasNote = !!data.notes[`${currentLevel}-${cls}`] || !!data.chunks[`${currentLevel}-${cls}`];
                                 
                                 const offset = getOffset(index);
                                 
@@ -735,12 +825,18 @@
                                 let extraClasses = '';
                                 let iconName = hasNote ? "BookOpen" : "Play";
 
+                                // Si está marcado para repasar, le damos un brillo especial
+                                if (isBookmarked && !isCurrent) {
+                                    borderColor = 'border-orange-500';
+                                    extraClasses += ' shadow-[0_0_10px_rgba(249,115,22,0.3)]';
+                                }
+
                                 if (isReviewCompleted) {
                                     bgColor = 'bg-duogold'; borderColor = 'border-duogoldDark'; iconColor = '#ffffff'; iconName = "Check";
                                 } else if (isClassCompleted) {
                                     if (isCurrent) {
                                         bgColor = 'bg-duogold'; borderColor = 'border-duogoldDark'; iconColor = '#ffffff';
-                                        extraClasses = 'animate-bounce-slow shadow-[0_0_20px_rgba(255,200,0,0.5)]';
+                                        extraClasses += ' animate-bounce-slow shadow-[0_0_20px_rgba(255,200,0,0.5)]';
                                         iconName = "RotateCw";
                                     } else {
                                         bgColor = 'bg-duogreen'; borderColor = 'border-duogreenDark'; iconColor = '#ffffff'; iconName = "Check";
@@ -748,9 +844,9 @@
                                 } else {
                                     if (isCurrent) {
                                         bgColor = 'bg-duogreen'; borderColor = 'border-duogreenDark'; iconColor = '#ffffff';
-                                        extraClasses = 'animate-bounce-slow shadow-[0_0_20px_rgba(88,204,2,0.5)]';
+                                        extraClasses += ' animate-bounce-slow shadow-[0_0_20px_rgba(88,204,2,0.5)]';
                                     } else {
-                                        extraClasses = 'opacity-70';
+                                        extraClasses += ' opacity-70';
                                     }
                                 }
 
@@ -781,6 +877,13 @@
                                         <div className="absolute top-12 font-bold text-xs bg-darker px-2 py-1 rounded-full border border-surface shadow-sm" style={{ transform: `translateX(${offset}px)` }}>
                                             Clase {cls}
                                         </div>
+                                        
+                                        {/* Indicador flotante si está en marcadores */}
+                                        {isBookmarked && (
+                                            <div className="absolute top-0 right-0 text-orange-500 bg-darker rounded-full p-0.5" style={{ transform: `translateX(${offset + 20}px)` }}>
+                                                <Icon name="Bookmark" size={14} />
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -830,16 +933,88 @@
                             })()}
                         </div>
 
-                        <div className="mt-8 bg-surface border-2 border-duogray p-5 rounded-2xl flex items-start gap-4 shadow-lg">
-                            <div className="bg-duoblue/20 p-3 rounded-full shrink-0">
-                                <Icon name="Brain" color="#1cb0f6" size={28} />
+                    </div>
+                );
+            };
+
+            // --- VISTA: GUARDADOS / PARA REPASAR MEJORADA ---
+            const renderBookmarksTab = () => {
+                const levels = [
+                    { key: 'beginner', label: 'Principiante', color: 'text-duogreen', bg: 'bg-duogreen/20' },
+                    { key: 'intermediate', label: 'Intermedio', color: 'text-duoblue', bg: 'bg-duoblue/20' },
+                    { key: 'advanced', label: 'Avanzado', color: 'text-orange-500', bg: 'bg-orange-500/20' }
+                ];
+
+                const hasBookmarks = levels.some(l => data.bookmarks[l.key].length > 0);
+
+                return (
+                    <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="bg-orange-500/20 p-3 rounded-2xl text-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+                                <Icon name="Bookmark" size={28} />
                             </div>
                             <div>
-                                <h4 className="font-bold text-duoblue mb-1">Ciencia del Aprendizaje</h4>
-                                <p className="text-sm text-duotext italic leading-relaxed">"{dailyQuote}"</p>
+                                <h1 className="text-2xl font-bold text-white">Para Repasar</h1>
+                                <p className="text-sm text-duotext">Clases y Estructuras difíciles</p>
                             </div>
                         </div>
 
+                        {!hasBookmarks ? (
+                            <div className="bg-surface border-2 border-duogray rounded-2xl p-8 text-center mt-10 shadow-lg">
+                                <Icon name="CheckCircle" size={48} color="#58cc02" className="mx-auto mb-4 opacity-80" />
+                                <h2 className="text-lg font-bold text-white mb-2">¡Todo dominado!</h2>
+                                <p className="text-sm text-duotext">No tienes clases marcadas. Usa el ícono de marcador dentro de cualquier lección si un "Lexical Chunk" o estructura se te complica, para tenerlo aquí a mano.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-4">
+                                {levels.map(lvl => data.bookmarks[lvl.key].map(classId => {
+                                    const courseInfo = courseData[lvl.key]?.find(c => c.id === classId);
+                                    const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${classId}`;
+                                    const note = data.notes[`${lvl.key}-${classId}`];
+                                    const chunks = data.chunks[`${lvl.key}-${classId}`];
+
+                                    return (
+                                        <div 
+                                            key={`${lvl.key}-${classId}`}
+                                            onClick={() => {
+                                                setCurrentLevel(lvl.key);
+                                                setSelectedClass(classId);
+                                            }}
+                                            className="bg-surface border-2 border-orange-500/30 rounded-2xl p-4 cursor-pointer hover:border-orange-500 transition-colors shadow-md animate-[slideUp_0.3s_ease-out]"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className={`text-xs font-bold uppercase tracking-wider ${lvl.color} ${lvl.bg} px-2 py-1 rounded-md`}>
+                                                    {lvl.label} • #{classId}
+                                                </span>
+                                                <Icon name="Bookmark" size={20} color="#f97316" />
+                                            </div>
+                                            <h3 className="font-bold text-white mb-2 line-clamp-2">{displayTitle}</h3>
+                                            
+                                            {/* Sección Resaltada para Chunks */}
+                                            {chunks && (
+                                                <div className="bg-dark p-3 rounded-xl border border-purple-500/50 mt-3">
+                                                    <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mb-1">
+                                                        <Icon name="Zap" size={12} />
+                                                        Estructuras / Chunks:
+                                                    </div>
+                                                    <p className="text-sm text-purple-100/90 whitespace-pre-wrap font-mono text-[13px]">{chunks}</p>
+                                                </div>
+                                            )}
+
+                                            {note && (
+                                                <div className="bg-darker p-3 rounded-xl border border-duogray/50 mt-2">
+                                                    <div className="flex items-center gap-1 text-xs font-bold text-duotext mb-1">
+                                                        <Icon name="BookOpen" size={12} />
+                                                        Apuntes:
+                                                    </div>
+                                                    <p className="text-sm text-white/80 line-clamp-2">{note}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }))}
+                            </div>
+                        )}
                     </div>
                 );
             };
@@ -935,7 +1110,6 @@
                             title: row[1].replace(/^"|"$/g, ''), 
                             videoUrl: row[2], 
                             videoId: row[3],
-                            // Lógica de Descripción (Índice 6 en el CSV)
                             description: row[6] ? row.slice(6).join(',').replace(/^"|"$/g, '') : null 
                         });
                     }
@@ -1057,19 +1231,23 @@
             );
 
             const renderTabBar = () => (
-                <nav className="fixed bottom-0 w-full bg-darker border-t border-surface py-3 px-6 z-40 pb-safe">
-                    <div className="flex justify-between max-w-md mx-auto relative">
+                <nav className="fixed bottom-0 w-full bg-darker border-t border-surface py-3 px-2 sm:px-6 z-40 pb-safe">
+                    <div className="flex justify-around max-w-md mx-auto relative">
                         <button onClick={() => setCurrentTab('learn')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'learn' ? 'text-duoblue bg-duoblue/10' : 'text-duotext'}`}>
                             <Icon name="Home" />
-                            <span className="text-xs font-bold mt-1">Aprender</span>
+                            <span className="text-[10px] sm:text-xs font-bold mt-1">Aprender</span>
+                        </button>
+                        <button onClick={() => setCurrentTab('bookmarks')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'bookmarks' ? 'text-orange-500 bg-orange-500/10' : 'text-duotext'}`}>
+                            <Icon name="Bookmark" />
+                            <span className="text-[10px] sm:text-xs font-bold mt-1">Repasar</span>
                         </button>
                         <button onClick={() => setCurrentTab('stats')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'stats' ? 'text-duoblue bg-duoblue/10' : 'text-duotext'}`}>
                             <Icon name="BarChart2" />
-                            <span className="text-xs font-bold mt-1">Estadísticas</span>
+                            <span className="text-[10px] sm:text-xs font-bold mt-1">Estadísticas</span>
                         </button>
                         <button onClick={() => setCurrentTab('profile')} className={`flex flex-col items-center p-2 rounded-xl transition-colors ${currentTab === 'profile' ? 'text-duoblue bg-duoblue/10' : 'text-duotext'}`}>
                             <Icon name="User" />
-                            <span className="text-xs font-bold mt-1">Perfil</span>
+                            <span className="text-[10px] sm:text-xs font-bold mt-1">Perfil</span>
                         </button>
                     </div>
                 </nav>
@@ -1095,7 +1273,10 @@
                 const classKey = `${currentLevel}-${selectedClass}`;
                 const isClassCompleted = data.completed[currentLevel].includes(selectedClass);
                 const isReviewCompleted = data.reviews[currentLevel].includes(selectedClass);
+                const isBookmarked = data.bookmarks[currentLevel].includes(selectedClass);
+                
                 const note = data.notes[classKey] || '';
+                const chunk = data.chunks[classKey] || '';
 
                 const levelCourses = courseData[currentLevel] || [];
                 const courseInfo = levelCourses.find(c => c.id === selectedClass);
@@ -1116,9 +1297,18 @@
                                     </div>
                                     <h3 className="text-xl font-bold leading-tight">{displayTitle}</h3>
                                 </div>
-                                <button onClick={() => setSelectedClass(null)} className="bg-surface p-2 rounded-full text-duotext hover:text-white shrink-0">
-                                    <Icon name="X" />
-                                </button>
+                                <div className="flex gap-2 shrink-0">
+                                    <button 
+                                        onClick={() => toggleBookmark(currentLevel, selectedClass)} 
+                                        className={`p-2 rounded-full transition-colors ${isBookmarked ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(255,165,0,0.5)]' : 'bg-surface text-duotext hover:text-white'}`}
+                                        title="Marcar para repasar"
+                                    >
+                                        <Icon name="Bookmark" />
+                                    </button>
+                                    <button onClick={() => setSelectedClass(null)} className="bg-surface p-2 rounded-full text-duotext hover:text-white">
+                                        <Icon name="X" />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Mostrar Descripción del CSV si existe */}
@@ -1153,7 +1343,7 @@
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3">
+                            <div className="grid grid-cols-1 gap-3 mb-2">
                                 <button 
                                     onClick={() => handleProgressWithConfetti(currentLevel, selectedClass, 'completed')}
                                     className={`duo-btn w-full font-bold py-3 px-2 rounded-2xl flex items-center justify-center gap-2 text-[15px] border-b-4 ${
@@ -1179,14 +1369,28 @@
                                 </button>
                             </div>
 
+                            {/* NUEVO: ESTADO SEPARADO PARA ESTRUCTURAS Y CHUNKS */}
+                            <div className="mt-2 bg-darker p-3 rounded-2xl border border-purple-500/30">
+                                <label className="flex items-center gap-2 text-sm font-bold text-purple-400 mb-2">
+                                    <Icon name="Zap" size={16} />
+                                    Estructuras y Lexical Chunks:
+                                </label>
+                                <textarea 
+                                    className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 resize-none h-16 font-mono text-[13px]"
+                                    placeholder="Ej. 'cost an arm and a leg', 'mull over'..."
+                                    value={chunk}
+                                    onChange={(e) => saveChunk(classKey, e.target.value)}
+                                ></textarea>
+                            </div>
+
                             <div className="mt-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-duotext mb-2">
                                     <Icon name="BookOpen" size={16} />
-                                    Mis Notas para esta clase:
+                                    Mis Notas Generales:
                                 </label>
                                 <textarea 
-                                    className="w-full bg-surface border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-24"
-                                    placeholder="Escribe aquí el tema, vocabulario o apuntes..."
+                                    className="w-full bg-surface border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-20 text-[14px]"
+                                    placeholder="Escribe tus apuntes libres aquí..."
                                     value={note}
                                     onChange={(e) => saveNote(classKey, e.target.value)}
                                 ></textarea>
@@ -1202,12 +1406,13 @@
                     {renderStreakModal()}
                     <main>
                         {currentTab === 'learn' && renderLearnTab()}
+                        {currentTab === 'bookmarks' && renderBookmarksTab()}
                         {currentTab === 'stats' && renderStatsTab()}
                         {currentTab === 'profile' && renderProfileTab()}
                     </main>
                     
                     {/* Botón Flotante para subir */}
-                    {showScrollTop && (
+                    {showScrollTop && currentTab === 'learn' && (
                         <button
                             onClick={scrollToTop}
                             className="fixed bottom-20 right-4 w-12 h-12 bg-duoblue hover:bg-duoblueDark text-white rounded-full shadow-lg flex items-center justify-center z-30 transition-all animate-[scaleIn_0.2s_ease-out]"
