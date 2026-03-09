@@ -110,7 +110,7 @@
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                // Subrayado ==texto== (Acepta saltos de línea dentro)
+                // Subrayado ==texto== 
                 .replace(/==([\s\S]*?)==/g, '<mark class="bg-yellow-500/80 text-darker font-bold rounded px-1.5 py-0.5 shadow-sm">$1</mark>')
                 // Negrita *texto*
                 .replace(/\*([\s\S]*?)\*/g, '<strong class="font-bold text-white">$1</strong>')
@@ -119,53 +119,67 @@
             return { __html: html };
         };
 
-        // --- LECTOR DE CSV INTELIGENTE (Soporta saltos de línea dentro de las comillas y es aprueba de errores) ---
+        // --- LECTOR DE CSV ROBUSTO DEFINITIVO (Caracter por Caracter) ---
         const parseCSVText = (text) => {
             const parsedData = [];
             let inQuotes = false;
             let row = [];
-            let current = '';
+            let currentField = '';
 
             for (let i = 0; i < text.length; i++) {
                 const char = text[i];
-                
+                const nextChar = text[i+1];
+
                 if (char === '"') {
-                    if (inQuotes && text[i+1] === '"') {
-                        current += '"';
-                        i++;
+                    if (inQuotes && nextChar === '"') {
+                        // Comillas dobles escapadas ("")
+                        currentField += '"';
+                        i++; 
                     } else {
+                        // Abrir o cerrar bloque de texto
                         inQuotes = !inQuotes;
                     }
                 } else if (char === ',' && !inQuotes) {
-                    row.push(current);
-                    current = '';
-                } else if (char === '\n' && !inQuotes) {
-                    row.push(current);
+                    // Fin de columna
+                    row.push(currentField);
+                    currentField = '';
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                    // Ignoramos el \r de Windows
+                    if (char === '\r' && nextChar === '\n') {
+                        continue;
+                    }
+                    
+                    // Fin de fila
+                    row.push(currentField);
+                    
                     if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
                         parsedData.push({
                             id: parseInt(row[0].trim()),
                             title: row[1] ? row[1].trim() : '',
                             videoUrl: row[2] ? row[2].trim() : '',
                             videoId: row[3] ? row[3].trim() : '',
-                            // Recopila todo lo que haya después de la columna 5 por si hay comas sin comillas
-                            description: row.length > 6 && row[6] ? row.slice(6).join(',').trim() : null
+                            // La columna 7 (índice 6) es la descripción, sin importar qué tan larga sea
+                            description: row.length > 6 && row[6] ? row[6].trim() : null
                         });
                     }
                     row = [];
-                    current = '';
-                } else if (char !== '\r') {
-                    current += char;
+                    currentField = '';
+                } else {
+                    // Cualquier otro caracter (letras, espacios, y saltos de línea DENTRO de las comillas)
+                    currentField += char;
                 }
             }
-            if (row.length > 0 || current !== '') {
-                row.push(current);
+            
+            // Añadir la última fila si el archivo no termina con salto de línea
+            if (currentField !== '' || row.length > 0) {
+                row.push(currentField);
                 if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
                     parsedData.push({
                         id: parseInt(row[0].trim()),
                         title: row[1] ? row[1].trim() : '',
                         videoUrl: row[2] ? row[2].trim() : '',
                         videoId: row[3] ? row[3].trim() : '',
-                        description: row.length > 6 && row[6] ? row.slice(6).join(',').trim() : null
+                        description: row.length > 6 && row[6] ? row[6].trim() : null
                     });
                 }
             }
@@ -284,14 +298,14 @@
 
             React.useEffect(() => { localStorage.setItem('lingoTubeData', JSON.stringify(data)); }, [data]);
 
+            // NUEVA CACHÉ V5: Esto fuerza a todos los navegadores a descargar de GitHub tu nuevo CSV completo.
             const [courseData, setCourseData] = React.useState(() => {
-                // NOTA IMPORTANTE: Hemos cambiado la clave de caché a 'V2' para forzar la actualización de tus descripciones largas.
-                const saved = localStorage.getItem('lingoTubeCourseDataV2');
+                const saved = localStorage.getItem('lingoTubeCourseData_v5');
                 const defaultData = { beginner: [], intermediate: [], advanced: [], beginnerReview: [], intermediateReview: [], advancedReview: [] };
                 return saved ? { ...defaultData, ...JSON.parse(saved) } : defaultData;
             });
 
-            React.useEffect(() => { localStorage.setItem('lingoTubeCourseDataV2', JSON.stringify(courseData)); }, [courseData]);
+            React.useEffect(() => { localStorage.setItem('lingoTubeCourseData_v5', JSON.stringify(courseData)); }, [courseData]);
 
             const updateCourseData = (levelKey, levelData) => setCourseData(prev => ({ ...prev, [levelKey]: levelData }));
 
@@ -412,7 +426,6 @@
                 setData(prev => ({ ...prev, chunks: { ...(prev.chunks || {}), [classKey]: text } }));
             };
 
-            // Import/Export Lógica
             const exportData = () => {
                 const dataStr = localStorage.getItem('lingoTubeData');
                 const blob = new Blob([dataStr], { type: "application/json" });
@@ -444,7 +457,30 @@
                 reader.readAsText(file);
             };
 
-            return { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData };
+            // FUNCION DE SINCRONIZACION RESTAURADA COMPLETAMENTE
+            const syncFromServer = async () => {
+                const CSV_LEVELS = ['beginner', 'intermediate', 'advanced', 'beginnerReview', 'intermediateReview', 'advancedReview'];
+                let loadedAny = false;
+                for (const lvl of CSV_LEVELS) {
+                    try {
+                        const response = await fetch(`./${lvl}.csv`);
+                        if (response.ok) {
+                            const text = await response.text();
+                            const parsed = parseCSVText(text);
+                            if(parsed.length > 0) {
+                                updateCourseData(lvl, parsed);
+                                loadedAny = true;
+                            }
+                        }
+                    } catch (err) {
+                        console.log(`Error sincronizando ${lvl}:`, err);
+                    }
+                }
+                if(loadedAny) alert("¡Datos y enlaces sincronizados con éxito desde tu GitHub Pages!");
+                else alert("No se encontraron los archivos .csv. Asegúrate de que estén subidos a GitHub.");
+            };
+
+            return { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData, syncFromServer };
         }
 
         const getOffset = (index) => {
@@ -457,7 +493,6 @@
             return 0;
         };
         
-        // COMPONENTE TARJETA DE MARCADORES (REPASAR)
         const BookmarkCard = ({ lvl, classId, note, chunks, displayTitle, toggleBookmark, setCurrentLevel, setSelectedClass, saveChunk, saveNote }) => {
             const [expanded, setExpanded] = React.useState(false);
             const classKey = `${lvl.key}-${classId}`;
@@ -512,7 +547,7 @@
         };
 
         const App = () => {
-            const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData } = useAppStore();
+            const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData, syncFromServer } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState('beginner');
             const [selectedClass, setSelectedClass] = React.useState(null);
@@ -523,7 +558,6 @@
             const [streakQuote, setStreakQuote] = React.useState('');
             const [showScrollTop, setShowScrollTop] = React.useState(false);
             
-            // ESTADO PARA EL MODAL DE LECTURA PANTALLA COMPLETA
             const [fullScreenNoteText, setFullScreenNoteText] = React.useState(null);
             
             const activeNodeRef = React.useRef(null);
@@ -534,6 +568,27 @@
             }, []);
 
             React.useEffect(() => { if (streakIncreased) setIsStreakModalOpen(true); }, [streakIncreased]);
+
+            // AUTO-CARGA DESDE GITHUB PAGES
+            React.useEffect(() => {
+                const autoLoad = async () => {
+                    const CSV_LEVELS = ['beginner', 'intermediate', 'advanced', 'beginnerReview', 'intermediateReview', 'advancedReview'];
+                    for (const lvl of CSV_LEVELS) {
+                        if (!courseData[lvl] || courseData[lvl].length === 0) {
+                            try {
+                                const response = await fetch(`./${lvl}.csv`);
+                                if (response.ok) {
+                                    const text = await response.text();
+                                    updateCourseData(lvl, parseCSVText(text));
+                                }
+                            } catch (e) {
+                                console.log(`Esperando a GitHub Pages para cargar ${lvl}.csv`);
+                            }
+                        }
+                    }
+                };
+                autoLoad();
+            }, []);
 
             React.useEffect(() => {
                 if (currentTab === 'learn' && activeNodeRef.current) {
@@ -869,7 +924,7 @@
                             <div className="bg-duogreen/20 p-2 rounded-xl text-duogreen"><Icon name="Save" size={24} /></div>
                             <h2 className="font-bold text-lg text-white">Copia de Seguridad</h2>
                         </div>
-                        <p className="text-sm text-duotext mb-4">Guarda tu progreso (rachas, notas, clases completadas) en un archivo para usarlo en otro dispositivo.</p>
+                        <p className="text-sm text-duotext mb-4">Guarda tu progreso en un archivo para no perderlo o para usarlo en otro dispositivo.</p>
                         <div className="flex gap-3">
                             <button onClick={exportData} className="flex-1 bg-duogray hover:bg-duogray/80 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md">
                                 <Icon name="Download" size={18} /> Exportar
@@ -886,13 +941,15 @@
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <div className="bg-duoblue/20 p-2 rounded-xl text-duoblue"><Icon name="Database" size={24} /></div>
-                                <h2 className="font-bold text-lg text-white">Datos de Clases</h2>
+                                <h2 className="font-bold text-lg text-white">Sincronización de Datos</h2>
                             </div>
                             <button onClick={syncFromServer} className="bg-duoblue/20 text-duoblue hover:bg-duoblue/30 p-2 rounded-xl flex items-center gap-1 text-sm font-bold transition-colors">
                                 <Icon name="DownloadCloud" size={18} /> Sync
                             </button>
                         </div>
-                        <p className="text-sm text-duotext mb-6">Añade los archivos CSV para sincronizar los títulos reales y enlaces a YT.</p>
+                        <p className="text-sm text-duotext mb-6 text-yellow-400 font-medium">
+                            ⚠️ Presiona el botón "Sync" arriba a la derecha para actualizar tus clases directamente desde tu GitHub, o sube los archivos de forma manual abajo.
+                        </p>
                         
                         {['beginner', 'intermediate', 'advanced'].map(lvl => {
                             const nameMap = { beginner: 'Principiante', intermediate: 'Intermedio', advanced: 'Avanzado' };
@@ -980,7 +1037,20 @@
 
                             <div className="flex gap-2 mb-2 mt-1">
                                 <a href={ytClassLink} target="_blank" className="duo-btn flex-1 bg-[#ff0000] hover:bg-[#cc0000] text-white font-bold py-3 rounded-2xl flex flex-col items-center justify-center gap-1 border-[#b30000] text-sm"><Icon name="Youtube" size={20} /><span>Clase (60m)</span></a>
-                                {ytReviewLink && <a href={ytReviewLink} target="_blank" className="duo-btn flex-1 bg-duogold hover:bg-duogoldDark text-white font-bold py-3 rounded-2xl flex flex-col items-center justify-center gap-1 border-[#cca000] text-sm"><Icon name="PlayCircle" size={20} /><span>Repaso (18m)</span></a>}
+                                
+                                {/* BOTON DE REPASO RESTAURADO Y SIEMPRE VISIBLE */}
+                                <button 
+                                    onClick={() => {
+                                        if (ytReviewLink) {
+                                            window.open(ytReviewLink, '_blank');
+                                        } else {
+                                            alert(`No se encontró el enlace de repaso.\n\nPor favor, ve a la pestaña "Perfil" y presiona el botón "Sync" para descargar el archivo ${currentLevel}Review.csv desde GitHub.`);
+                                        }
+                                    }}
+                                    className="duo-btn flex-1 bg-duogold hover:bg-duogoldDark text-white font-bold py-3 rounded-2xl flex flex-col items-center justify-center gap-1 border-[#cca000] text-sm"
+                                >
+                                    <Icon name="PlayCircle" size={20} /><span>Repaso (18m)</span>
+                                </button>
                             </div>
 
                             <div className="grid grid-cols-1 gap-3 mb-2">
@@ -1012,12 +1082,11 @@
                 );
             };
 
-            // MODAL DE LECTURA DE PANTALLA COMPLETA (Para los apuntes largos del CSV)
             const renderFullScreenNote = () => {
                 if (!fullScreenNoteText) return null;
                 return (
-                    <div className="fixed inset-0 bg-dark z-[70] flex flex-col animate-[slideUp_0.2s_ease-out]">
-                        <div className="flex justify-between items-center p-4 border-b border-surface bg-darker shadow-md shrink-0 pt-safe">
+                    <div className="fixed inset-0 bg-darker z-[70] flex flex-col animate-[slideUp_0.2s_ease-out]">
+                        <div className="flex justify-between items-center p-4 border-b border-surface bg-dark shadow-md shrink-0 pt-safe">
                             <h3 className="font-bold text-lg text-white flex items-center gap-2">
                                 <Icon name="BookOpen" className="text-duoblue" /> Apuntes de la Clase
                             </h3>
