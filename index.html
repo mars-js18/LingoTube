@@ -101,7 +101,6 @@
         };
 
         // --- RENDERIZADOR DE SUBRAYADO (Highlighting) ---
-        // Convierte el texto "==texto==" en texto con fondo amarillo
         const renderHighlightedText = (text) => {
             if (!text) return null;
             const parts = text.split(/(==.*?==)/g);
@@ -111,6 +110,60 @@
                 }
                 return <span key={i}>{part}</span>;
             });
+        };
+
+        // --- LECTOR DE CSV INTELIGENTE (Soporta saltos de línea dentro de las comillas) ---
+        const parseCSVText = (text) => {
+            const parsedData = [];
+            let inQuotes = false;
+            let row = [];
+            let current = '';
+
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                
+                if (char === '"') {
+                    // Ignorar comillas escapadas "" o cambiar estado
+                    if (inQuotes && text[i+1] === '"') {
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    row.push(current);
+                    current = '';
+                } else if (char === '\n' && !inQuotes) {
+                    row.push(current);
+                    if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
+                        parsedData.push({
+                            id: parseInt(row[0].trim()),
+                            title: row[1] ? row[1].trim() : '',
+                            videoUrl: row[2] ? row[2].trim() : '',
+                            videoId: row[3] ? row[3].trim() : '',
+                            description: row[6] ? row[6].trim() : null // Columna 7: Descripción / Apuntes
+                        });
+                    }
+                    row = [];
+                    current = '';
+                } else if (char !== '\r') {
+                    current += char;
+                }
+            }
+            // Agregar la última línea si el archivo no termina en salto de línea
+            if (row.length > 0 || current !== '') {
+                row.push(current);
+                if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
+                    parsedData.push({
+                        id: parseInt(row[0].trim()),
+                        title: row[1] ? row[1].trim() : '',
+                        videoUrl: row[2] ? row[2].trim() : '',
+                        videoId: row[3] ? row[3].trim() : '',
+                        description: row[6] ? row[6].trim() : null
+                    });
+                }
+            }
+            return parsedData;
         };
 
         // --- DATOS DEL CURSO ---
@@ -463,7 +516,7 @@
             const [streakQuote, setStreakQuote] = React.useState('');
             const [showScrollTop, setShowScrollTop] = React.useState(false);
             
-            // Estado movido hacia arriba para evitar React Hook Error #310
+            // Solución React #310: El estado de expansión de la descripción de clase va en la raíz de App
             const [descExpanded, setDescExpanded] = React.useState(false);
             
             const activeNodeRef = React.useRef(null);
@@ -487,7 +540,7 @@
                 return () => window.removeEventListener('scroll', handleScroll);
             }, []);
             
-            // Resetea el estado de expansión de la descripción cuando cambia la clase
+            // Resetea el panel expandible si cambias a otra clase
             React.useEffect(() => {
                 if (selectedClass) {
                     setDescExpanded(false);
