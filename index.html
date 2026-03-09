@@ -132,45 +132,33 @@
 
                 if (char === '"') {
                     if (inQuotes && nextChar === '"') {
-                        // Comillas dobles escapadas ("")
                         currentField += '"';
                         i++; 
                     } else {
-                        // Abrir o cerrar bloque de texto
                         inQuotes = !inQuotes;
                     }
                 } else if (char === ',' && !inQuotes) {
-                    // Fin de columna
                     row.push(currentField);
                     currentField = '';
                 } else if ((char === '\n' || char === '\r') && !inQuotes) {
-                    // Ignoramos el \r de Windows
-                    if (char === '\r' && nextChar === '\n') {
-                        continue;
-                    }
+                    if (char === '\r' && nextChar === '\n') continue;
                     
-                    // Fin de fila
                     row.push(currentField);
-                    
                     if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
                         parsedData.push({
                             id: parseInt(row[0].trim()),
                             title: row[1] ? row[1].trim() : '',
                             videoUrl: row[2] ? row[2].trim() : '',
                             videoId: row[3] ? row[3].trim() : '',
-                            // La columna 7 (índice 6) es la descripción, sin importar qué tan larga sea
                             description: row.length > 6 && row[6] ? row[6].trim() : null
                         });
                     }
                     row = [];
                     currentField = '';
                 } else {
-                    // Cualquier otro caracter (letras, espacios, y saltos de línea DENTRO de las comillas)
                     currentField += char;
                 }
             }
-            
-            // Añadir la última fila si el archivo no termina con salto de línea
             if (currentField !== '' || row.length > 0) {
                 row.push(currentField);
                 if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
@@ -193,9 +181,7 @@
             advanced: 'PLAz9gX__ElWrCO8O3zRRMOwj2Bk5QtXTx'
         };
         const TOTAL_CLASSES = 195;
-        // Calculado exactamente: 49 minutos + (31 segundos / 60)
         const CLASS_DURATION = 49 + (31 / 60); 
-        // Calculado exactamente: 18 minutos + (12 segundos / 60)
         const REVIEW_DURATION = 18 + (12 / 60); 
 
         const MOTIVATIONAL_QUOTES = [
@@ -493,7 +479,8 @@
             return 0;
         };
         
-        const BookmarkCard = ({ lvl, classId, note, chunks, displayTitle, toggleBookmark, setCurrentLevel, setSelectedClass, saveChunk, saveNote }) => {
+        // COMPONENTE TARJETA DE MARCADORES (REPASAR)
+        const BookmarkCard = ({ lvl, classId, note, chunks, displayTitle, toggleBookmark, setCurrentLevel, setSelectedClass, saveChunk, saveNote, setFullScreenEdit }) => {
             const [expanded, setExpanded] = React.useState(false);
             const classKey = `${lvl.key}-${classId}`;
             return (
@@ -513,18 +500,29 @@
 
                     {expanded ? (
                         <div className="mt-4 animate-[slideUp_0.2s_ease-out]">
-                            <div className="bg-darker p-3 rounded-2xl border border-purple-500/30">
-                                <label className="flex items-center justify-between text-sm font-bold text-purple-400 mb-2">
-                                    <div className="flex items-center gap-2"><Icon name="Zap" size={16} /> Estructuras / Chunks</div>
-                                    <span className="text-[10px] bg-purple-500/20 px-2 py-0.5 rounded text-purple-300">Usa ==texto== para subrayar</span>
-                                </label>
+                            <div className="bg-darker p-3 rounded-2xl border border-purple-500/30 mb-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-purple-400">
+                                        <Icon name="Zap" size={16} /> Estructuras / Chunks
+                                    </label>
+                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'chunks' })} className="flex items-center gap-1 text-[10px] bg-purple-500/20 px-2 py-1 rounded text-purple-300 hover:bg-purple-500/40 transition-colors uppercase tracking-wider font-bold">
+                                        <Icon name="Maximize2" size={12} /> Expandir
+                                    </button>
+                                </div>
                                 <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 resize-none h-20 font-mono text-[13px]" placeholder="Ej. ==cost an arm and a leg==" value={chunks} onChange={(e) => saveChunk(classKey, e.target.value)}></textarea>
                             </div>
-                            <div className="mt-3">
-                                <label className="flex items-center gap-2 text-sm font-bold text-duotext mb-2"><Icon name="BookOpen" size={16} /> Mis Notas</label>
+                            <div className="bg-darker p-3 rounded-2xl border border-duogray/50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-duotext">
+                                        <Icon name="BookOpen" size={16} /> Mis Notas
+                                    </label>
+                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'notes' })} className="flex items-center gap-1 text-[10px] bg-white/10 px-2 py-1 rounded text-white/70 hover:bg-white/20 transition-colors uppercase tracking-wider font-bold">
+                                        <Icon name="Maximize2" size={12} /> Expandir
+                                    </button>
+                                </div>
                                 <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-20 text-[14px]" placeholder="Escribe tus apuntes libres aquí..." value={note} onChange={(e) => saveNote(classKey, e.target.value)}></textarea>
                             </div>
-                            <button className="mt-3 duo-btn w-full bg-duoblue text-white font-bold py-2 rounded-xl text-sm" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>Ir a la clase completa</button>
+                            <button className="mt-4 duo-btn w-full bg-duoblue text-white font-bold py-3 rounded-xl text-sm" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>Ir a la clase completa</button>
                         </div>
                     ) : (
                         <div className="mt-3 cursor-pointer" onClick={() => setExpanded(true)}>
@@ -558,7 +556,10 @@
             const [streakQuote, setStreakQuote] = React.useState('');
             const [showScrollTop, setShowScrollTop] = React.useState(false);
             
-            const [fullScreenNoteText, setFullScreenNoteText] = React.useState(null);
+            // Estados para visualización a pantalla completa
+            const [descExpanded, setDescExpanded] = React.useState(false);
+            const [fullScreenNoteText, setFullScreenNoteText] = React.useState(null); // Para notas leídas desde el CSV
+            const [fullScreenEdit, setFullScreenEdit] = React.useState(null); // Para editar apuntes/chunks { classKey, type: 'notes'|'chunks' }
             
             const activeNodeRef = React.useRef(null);
 
@@ -569,7 +570,6 @@
 
             React.useEffect(() => { if (streakIncreased) setIsStreakModalOpen(true); }, [streakIncreased]);
 
-            // AUTO-CARGA DESDE GITHUB PAGES
             React.useEffect(() => {
                 const autoLoad = async () => {
                     const CSV_LEVELS = ['beginner', 'intermediate', 'advanced', 'beginnerReview', 'intermediateReview', 'advancedReview'];
@@ -601,6 +601,10 @@
                 window.addEventListener('scroll', handleScroll);
                 return () => window.removeEventListener('scroll', handleScroll);
             }, []);
+            
+            React.useEffect(() => {
+                if (selectedClass) { setDescExpanded(false); }
+            }, [selectedClass]);
 
             const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -864,7 +868,7 @@
                                     const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${classId}`;
                                     const note = data.notes[`${lvl.key}-${classId}`] || '';
                                     const chunks = data.chunks[`${lvl.key}-${classId}`] || '';
-                                    return <BookmarkCard key={`${lvl.key}-${classId}`} lvl={lvl} classId={classId} note={note} chunks={chunks} displayTitle={displayTitle} toggleBookmark={toggleBookmark} setCurrentLevel={setCurrentLevel} setSelectedClass={setSelectedClass} saveChunk={saveChunk} saveNote={saveNote} />;
+                                    return <BookmarkCard key={`${lvl.key}-${classId}`} lvl={lvl} classId={classId} note={note} chunks={chunks} displayTitle={displayTitle} toggleBookmark={toggleBookmark} setCurrentLevel={setCurrentLevel} setSelectedClass={setSelectedClass} saveChunk={saveChunk} saveNote={saveNote} setFullScreenEdit={setFullScreenEdit} />;
                                 }))}
                             </div>
                         )}
@@ -952,11 +956,8 @@
                                         <span className="text-white">{l.name}</span>
                                         <span className="text-duotext text-xs bg-darker px-2 py-0.5 rounded-full border border-duogray">{l.done} / {TOTAL_CLASSES} Clases</span>
                                     </div>
-                                    {/* Barra de progreso combinada */}
                                     <div className="h-4 w-full bg-darker rounded-full overflow-hidden relative border border-duogray/30">
-                                        {/* Clases (Fondo) */}
                                         <div className={`absolute top-0 left-0 h-full ${l.colorDone} transition-all duration-500 opacity-50`} style={{ width: `${(l.done/TOTAL_CLASSES)*100}%` }}></div>
-                                        {/* Repasos (Frente, más opaco/brillante para distinguirlo) */}
                                         <div className={`absolute top-0 left-0 h-full ${l.colorDone} transition-all duration-500 border-r-2 border-white/30`} style={{ width: `${(l.rev/TOTAL_CLASSES)*100}%` }}></div>
                                     </div>
                                     <div className="flex justify-between mt-1 px-1">
@@ -1073,7 +1074,7 @@
                                 </div>
                                 <div className="flex gap-2 shrink-0">
                                     <button onClick={() => toggleBookmark(currentLevel, selectedClass)} className={`p-2 rounded-full transition-colors ${isBookmarked ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(255,165,0,0.5)]' : 'bg-surface text-duotext hover:text-white'}`} title="Marcar para repasar"><Icon name="Bookmark" /></button>
-                                    <button onClick={() => { setSelectedClass(null); }} className="bg-surface p-2 rounded-full text-duotext hover:text-white"><Icon name="X" /></button>
+                                    <button onClick={() => { setSelectedClass(null); setDescExpanded(false); }} className="bg-surface p-2 rounded-full text-duotext hover:text-white"><Icon name="X" /></button>
                                 </div>
                             </div>
 
@@ -1118,20 +1119,30 @@
                                 </button>
                             </div>
 
+                            {/* NUEVO: RECUADRO DE CHUNKS CON BOTON DE EXPANSION */}
                             <div className="mt-2 bg-darker p-3 rounded-2xl border border-purple-500/30">
-                                <label className="flex items-center justify-between text-sm font-bold text-purple-400 mb-2">
-                                    <div className="flex items-center gap-2"><Icon name="Zap" size={16} /> Estructuras / Chunks</div>
-                                    <span className="text-[10px] bg-purple-500/20 px-2 py-0.5 rounded text-purple-300">Usa ==texto== para subrayar</span>
-                                </label>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-purple-400">
+                                        <Icon name="Zap" size={16} /> Estructuras / Chunks
+                                    </label>
+                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'chunks' })} className="flex items-center gap-1 text-[10px] bg-purple-500/20 px-2 py-1 rounded text-purple-300 hover:bg-purple-500/40 transition-colors uppercase tracking-wider font-bold">
+                                        <Icon name="Maximize2" size={12} /> Expandir
+                                    </button>
+                                </div>
                                 <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 resize-none h-16 font-mono text-[13px]" placeholder="Ej. ==cost an arm and a leg==" value={chunk} onChange={(e) => saveChunk(classKey, e.target.value)}></textarea>
                             </div>
 
-                            <div className="mt-2">
-                                <label className="flex items-center justify-between text-sm font-bold text-duotext mb-2">
-                                    <div className="flex items-center gap-2"><Icon name="BookOpen" size={16} /> Mis Notas</div>
-                                    <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/50">Usa ==texto== para subrayar</span>
-                                </label>
-                                <textarea className="w-full bg-surface border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-20 text-[14px]" placeholder="Escribe tus apuntes libres aquí..." value={note} onChange={(e) => saveNote(classKey, e.target.value)}></textarea>
+                            {/* NUEVO: RECUADRO DE NOTAS CON BOTON DE EXPANSION */}
+                            <div className="mt-2 bg-darker p-3 rounded-2xl border border-duogray/50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-duotext">
+                                        <Icon name="BookOpen" size={16} /> Mis Notas
+                                    </label>
+                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'notes' })} className="flex items-center gap-1 text-[10px] bg-white/10 px-2 py-1 rounded text-white/70 hover:bg-white/20 transition-colors uppercase tracking-wider font-bold">
+                                        <Icon name="Maximize2" size={12} /> Expandir
+                                    </button>
+                                </div>
+                                <textarea className="w-full bg-surface border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-16 text-[14px]" placeholder="Escribe tus apuntes libres aquí..." value={note} onChange={(e) => saveNote(classKey, e.target.value)}></textarea>
                             </div>
                         </div>
                     </div>
@@ -1155,6 +1166,51 @@
                 );
             };
 
+            // MODAL DEL EDITOR DE PANTALLA COMPLETA
+            const renderFullScreenEditor = () => {
+                if (!fullScreenEdit) return null;
+                
+                const { classKey, type } = fullScreenEdit;
+                const text = type === 'chunks' ? (data.chunks[classKey] || '') : (data.notes[classKey] || '');
+                
+                const handleChange = (e) => {
+                    if (type === 'chunks') saveChunk(classKey, e.target.value);
+                    else saveNote(classKey, e.target.value);
+                };
+
+                const title = type === 'chunks' ? "Estructuras / Chunks" : "Mis Notas";
+                const iconName = type === 'chunks' ? "Zap" : "BookOpen";
+                const colorClass = type === 'chunks' ? "text-purple-400" : "text-duoblue";
+                const placeholder = type === 'chunks' ? "Ej. ==cost an arm and a leg==" : "Escribe tus apuntes aquí...";
+                const bgFocusClass = type === 'chunks' ? "focus:border-purple-500" : "focus:border-duoblue";
+
+                return (
+                    <div className="fixed inset-0 bg-darker z-[80] flex flex-col animate-[slideUp_0.2s_ease-out]">
+                        <div className="flex justify-between items-center p-4 border-b border-surface bg-dark shadow-md shrink-0 pt-safe">
+                            <h3 className={`font-bold text-lg flex items-center gap-2 ${colorClass}`}>
+                                <Icon name={iconName} /> {title}
+                            </h3>
+                            <button onClick={() => setFullScreenEdit(null)} className="bg-duogreen hover:bg-duogreenDark text-white px-4 py-2 rounded-xl font-bold flex items-center gap-1 transition-colors">
+                                <Icon name="Check" size={18} /> Listo
+                            </button>
+                        </div>
+                        <div className="p-4 flex-1 flex flex-col pb-safe">
+                            <div className="bg-surface p-3 rounded-xl mb-3 flex items-center gap-2 text-sm text-duotext shadow-inner">
+                                <Icon name="Info" size={16} className={colorClass} /> 
+                                <span>Usa <strong className="text-white">==texto==</strong> para subrayar lo más importante.</span>
+                            </div>
+                            <textarea 
+                                className={`w-full flex-1 bg-dark border-2 border-duogray rounded-2xl p-4 text-white focus:outline-none ${bgFocusClass} resize-none text-[16px] leading-relaxed shadow-inner ${type === 'chunks' ? 'font-mono' : ''}`}
+                                value={text}
+                                onChange={handleChange}
+                                placeholder={placeholder}
+                                autoFocus
+                            ></textarea>
+                        </div>
+                    </div>
+                );
+            };
+
             return (
                 <div className="min-h-screen relative font-sans overflow-x-hidden">
                     {renderHeader()}
@@ -1173,6 +1229,7 @@
                     {renderTabBar()}
                     {renderModal()}
                     {renderFullScreenNote()}
+                    {renderFullScreenEditor()}
                 </div>
             );
         };
