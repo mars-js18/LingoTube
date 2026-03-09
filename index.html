@@ -67,6 +67,9 @@
         @keyframes scaleIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-30px) scale(1.5); opacity: 0; } }
         .animate-float-up { animation: floatUp 1.5s ease-out forwards; }
+        
+        .pt-safe { padding-top: env(safe-area-inset-top); }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
 <body>
@@ -100,16 +103,20 @@
             return <i ref={ref} data-lucide={name}></i>;
         };
 
-        // --- RENDERIZADOR DE SUBRAYADO (Highlighting) ---
-        const renderHighlightedText = (text) => {
-            if (!text) return null;
-            const parts = text.split(/(==.*?==)/g);
-            return parts.map((part, i) => {
-                if (part.startsWith('==') && part.endsWith('==')) {
-                    return <mark key={i} className="bg-yellow-500/80 text-darker font-bold rounded px-1.5 py-0.5 shadow-sm">{part.slice(2, -2)}</mark>;
-                }
-                return <span key={i}>{part}</span>;
-            });
+        // --- RENDERIZADOR DE TEXTO ENRIQUECIDO (Markdown Básico) ---
+        const renderRichTextHTML = (text) => {
+            if (!text) return { __html: '' };
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                // Subrayado ==texto==
+                .replace(/==(.*?)==/g, '<mark class="bg-yellow-500/80 text-darker font-bold rounded px-1.5 py-0.5 shadow-sm">$1</mark>')
+                // Negrita *texto*
+                .replace(/\*(.*?)\*/g, '<strong class="font-bold text-white">$1</strong>')
+                // Cursiva _texto_
+                .replace(/_(.*?)_/g, '<em class="italic text-duoblue">$1</em>');
+            return { __html: html };
         };
 
         // --- LECTOR DE CSV INTELIGENTE (Soporta saltos de línea dentro de las comillas) ---
@@ -123,7 +130,6 @@
                 const char = text[i];
                 
                 if (char === '"') {
-                    // Ignorar comillas escapadas "" o cambiar estado
                     if (inQuotes && text[i+1] === '"') {
                         current += '"';
                         i++;
@@ -150,7 +156,6 @@
                     current += char;
                 }
             }
-            // Agregar la última línea si el archivo no termina en salto de línea
             if (row.length > 0 || current !== '') {
                 row.push(current);
                 if (row.length >= 4 && row[0].trim() !== '#' && row[0].trim() !== '') {
@@ -489,13 +494,13 @@
                             {chunks && (
                                 <div className="bg-dark p-2.5 rounded-xl border border-purple-500/20 mb-2">
                                     <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mb-1"><Icon name="Zap" size={12} /> Chunks:</div>
-                                    <p className="text-sm text-purple-100/90 line-clamp-2 font-mono text-[13px]">{renderHighlightedText(chunks)}</p>
+                                    <div className="text-sm text-purple-100/90 line-clamp-2 font-mono text-[13px] whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(chunks)} />
                                 </div>
                             )}
                             {note && (
                                 <div className="bg-darker p-2.5 rounded-xl border border-duogray/50">
                                     <div className="flex items-center gap-1 text-xs font-bold text-duotext mb-1"><Icon name="BookOpen" size={12} /> Apuntes:</div>
-                                    <p className="text-sm text-white/80 line-clamp-2 leading-snug">{renderHighlightedText(note)}</p>
+                                    <div className="text-sm text-white/80 line-clamp-2 leading-snug whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(note)} />
                                 </div>
                             )}
                         </div>
@@ -516,8 +521,8 @@
             const [streakQuote, setStreakQuote] = React.useState('');
             const [showScrollTop, setShowScrollTop] = React.useState(false);
             
-            // Solución React #310: El estado de expansión de la descripción de clase va en la raíz de App
-            const [descExpanded, setDescExpanded] = React.useState(false);
+            // ESTADO PARA EL MODAL DE LECTURA PANTALLA COMPLETA
+            const [fullScreenNoteText, setFullScreenNoteText] = React.useState(null);
             
             const activeNodeRef = React.useRef(null);
 
@@ -539,13 +544,6 @@
                 window.addEventListener('scroll', handleScroll);
                 return () => window.removeEventListener('scroll', handleScroll);
             }, []);
-            
-            // Resetea el panel expandible si cambias a otra clase
-            React.useEffect(() => {
-                if (selectedClass) {
-                    setDescExpanded(false);
-                }
-            }, [selectedClass]);
 
             const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -863,7 +861,6 @@
                 <div className="pb-24 pt-20 px-4 max-w-md mx-auto">
                     <h1 className="text-2xl font-bold mb-6">Configuración y Perfil</h1>
                     
-                    {/* BACKUP & RESTORE SECTION */}
                     <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="bg-duogreen/20 p-2 rounded-xl text-duogreen"><Icon name="Save" size={24} /></div>
@@ -881,13 +878,15 @@
                         </div>
                     </div>
 
-                    {/* CSV UPLOAD SECTION */}
                     <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-3">
                                 <div className="bg-duoblue/20 p-2 rounded-xl text-duoblue"><Icon name="Database" size={24} /></div>
                                 <h2 className="font-bold text-lg text-white">Datos de Clases</h2>
                             </div>
+                            <button onClick={syncFromServer} className="bg-duoblue/20 text-duoblue hover:bg-duoblue/30 p-2 rounded-xl flex items-center gap-1 text-sm font-bold transition-colors">
+                                <Icon name="DownloadCloud" size={18} /> Sync
+                            </button>
                         </div>
                         <p className="text-sm text-duotext mb-6">Añade los archivos CSV para sincronizar los títulos reales y enlaces a YT.</p>
                         
@@ -957,19 +956,21 @@
                                 </div>
                                 <div className="flex gap-2 shrink-0">
                                     <button onClick={() => toggleBookmark(currentLevel, selectedClass)} className={`p-2 rounded-full transition-colors ${isBookmarked ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(255,165,0,0.5)]' : 'bg-surface text-duotext hover:text-white'}`} title="Marcar para repasar"><Icon name="Bookmark" /></button>
-                                    <button onClick={() => { setSelectedClass(null); setDescExpanded(false); }} className="bg-surface p-2 rounded-full text-duotext hover:text-white"><Icon name="X" /></button>
+                                    <button onClick={() => { setSelectedClass(null); }} className="bg-surface p-2 rounded-full text-duotext hover:text-white"><Icon name="X" /></button>
                                 </div>
                             </div>
 
+                            {/* NUEVO: RECUADRO DE APUNTES CON EXPANSION A MODAL COMPLETO */}
                             {courseInfo && courseInfo.description && (
-                                <div className="bg-darker p-3 rounded-xl border border-duogray mb-1 cursor-pointer" onClick={() => setDescExpanded(!descExpanded)}>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <h4 className="text-xs font-bold text-duotext uppercase tracking-wider">Notas de la Clase</h4>
-                                        <Icon name={descExpanded ? "ChevronUp" : "ChevronDown"} size={16} className="text-duotext" />
+                                <div className="bg-darker p-4 rounded-xl border border-duoblue/30 mb-1 cursor-pointer hover:border-duoblue transition-colors shadow-sm group" onClick={() => setFullScreenNoteText(courseInfo.description)}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <h4 className="text-xs font-bold text-duoblue uppercase tracking-wider flex items-center gap-1">
+                                            <Icon name="BookOpen" size={14} /> Notas de la Clase
+                                        </h4>
+                                        <Icon name="Maximize2" size={16} className="text-duoblue group-hover:scale-110 transition-transform" />
                                     </div>
-                                    <p className={`text-sm text-white/90 whitespace-pre-wrap leading-relaxed ${descExpanded ? '' : 'line-clamp-3'}`}>
-                                        {renderHighlightedText(courseInfo.description)}
-                                    </p>
+                                    <div className="text-sm text-white/80 whitespace-pre-wrap leading-relaxed line-clamp-3" dangerouslySetInnerHTML={renderRichTextHTML(courseInfo.description)} />
+                                    <div className="mt-3 text-center text-[10px] font-bold text-duoblue/80 uppercase tracking-widest border-t border-duogray/50 pt-2">Toca para leer todo</div>
                                 </div>
                             )}
 
@@ -1007,6 +1008,24 @@
                 );
             };
 
+            // MODAL DE LECTURA DE PANTALLA COMPLETA (Para los apuntes largos del CSV)
+            const renderFullScreenNote = () => {
+                if (!fullScreenNoteText) return null;
+                return (
+                    <div className="fixed inset-0 bg-dark z-[70] flex flex-col animate-[slideUp_0.2s_ease-out]">
+                        <div className="flex justify-between items-center p-4 border-b border-surface bg-darker shadow-md shrink-0 pt-safe">
+                            <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                                <Icon name="BookOpen" className="text-duoblue" /> Apuntes de la Clase
+                            </h3>
+                            <button onClick={() => setFullScreenNoteText(null)} className="bg-surface p-2 rounded-full text-duotext hover:text-white">
+                                <Icon name="X" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto flex-1 text-white/90 leading-relaxed whitespace-pre-wrap text-[15px] pb-safe" dangerouslySetInnerHTML={renderRichTextHTML(fullScreenNoteText)} />
+                    </div>
+                );
+            };
+
             return (
                 <div className="min-h-screen relative font-sans overflow-x-hidden">
                     {renderHeader()}
@@ -1024,6 +1043,7 @@
 
                     {renderTabBar()}
                     {renderModal()}
+                    {renderFullScreenNote()}
                 </div>
             );
         };
