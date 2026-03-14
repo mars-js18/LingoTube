@@ -184,74 +184,53 @@
         const CLASS_DURATION = 49 + (31 / 60); 
         const REVIEW_DURATION = 18 + (12 / 60); 
 
-        const MOTIVATIONAL_QUOTES = [
-            "La práctica distribuida mejora la retención a largo plazo en un 200%.",
-            "El aprendizaje intercalado aumenta la fluidez real en un 43%.",
-            "Dormir después de aprender consolida las conexiones sinápticas del vocabulario.",
-            "Cometer errores señala a tu cerebro qué circuitos debe reforzar. ¡Equivócate!",
-            "Recordar activamente fortalece la memoria mucho más que leer pasivamente.",
-            "La fatiga cognitiva significa que estás creando nuevas redes neuronales.",
-            "Fluidez es automatizar el acceso a palabras mediante mielinización."
-        ];
-
         const STUDY_PLAN = {
             1: { type: 'monday', name: 'Lunes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
             2: { type: 'tuesday', name: 'Martes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
             3: { type: 'wednesday', name: 'Miércoles de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
             4: { type: 'thursday', name: 'Jueves de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            5: { type: 'friday', name: 'Viernes de Interferencia', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'Shuffle' },
-            6: { type: 'saturday', name: 'Sábado de Consolidación', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'Layers' },
-            0: { type: 'sunday', name: 'Domingo de Descompresión', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Coffee' }
+            5: { type: 'friday', name: 'Viernes de Avance', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'BookOpen' },
+            6: { type: 'saturday', name: 'Sábado de Avance', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'BookOpen' },
+            0: { type: 'sunday', name: 'Domingo de Repaso General', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Radio' }
         };
 
-        const getPlanDetails = (type, level) => {
-            const isBeginner = level === 'beginner';
-            const globalPhases = [
-                { name: 'Bloque 1 (0-15m): Repaso Activo', desc: 'Pausa el video al ver el estímulo, intenta explicar en voz alta y reanuda para comprobar.' },
-                { name: 'Bloque 1 (15-60m): Consumo y Anclaje', desc: 'Atención a la prosodia. Usa Método Cornell para preguntas de recuperación.' }
+        const getPlanDetails = (type) => {
+            const advancePhases = [
+                { name: 'Mañana (0-15m): Repaso Activo', desc: 'Pausa el video al ver el estímulo, intenta explicar en voz alta y reanuda para comprobar.' },
+                { name: 'Mañana (15-60m): Consumo y Anclaje', desc: 'Atención a la prosodia. Usa Método Cornell para preguntas de recuperación.' },
+                { name: 'Tarde (30-45m): Práctica Extra', desc: 'Realiza la práctica asignada para este día (Shadowing, Blurting, etc.).' }
             ];
 
             const plans = {
                 'monday': {
-                    title: 'Lunes: Modelado Fonológico', description: 'Adquisición Lineal. (Haz tu Bloque Extra separado de la clase principal).',
-                    phases: [...globalPhases, { name: 'Bloque 2 (30-45m): Shadowing', desc: 'Repite en voz alta con fracción de segundo de retraso. Imita cadencia y emoción.' }]
+                    title: 'Lunes: Modelado Fonológico', description: 'Día de avance y práctica oral.',
+                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Shadowing', desc: 'Repite en voz alta con fracción de segundo de retraso. Imita cadencia y emoción.' }]
                 },
                 'tuesday': {
-                    title: 'Martes: Automatización bajo presión', description: 'Transfiere el control de tu idioma a la memoria procedimental.',
-                    phases: [...globalPhases, { name: 'Bloque 2 (30-45m): Técnica 4/3/2', desc: 'Graba 4m sobre un tema. Repite en 3m. Finalmente en 2m.' }]
+                    title: 'Martes: Automatización bajo presión', description: 'Transfiere el control a la memoria procedimental.',
+                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Técnica 4/3/2', desc: 'Graba 4m sobre un tema. Repite en 3m. Finalmente en 2m.' }]
                 },
                 'wednesday': {
-                    title: 'Miércoles: Activación Léxica', description: 'Forzamos el conocimiento pasivo hacia la fase activa.',
-                    phases: [...globalPhases, { name: 'Bloque 2 (30-45m): Vaciado o Protégé', desc: 'Blurting: escribe sin parar 5-10m lo que recuerdes. O Protégé: da clase de 5m a alumno imaginario.' }]
+                    title: 'Miércoles: Activación Léxica', description: 'Fuerza el conocimiento pasivo hacia la fase activa.',
+                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Vaciado o Protégé', desc: 'Blurting: escribe sin parar 5-10m lo que recuerdes. O Protégé: da clase de 5m a alumno imaginario.' }]
                 },
                 'thursday': {
                     title: 'Jueves: Interacción Social', description: 'Pierde el miedo al estrés conversacional.',
-                    phases: [...globalPhases, { name: 'Bloque 2 (30-45m): Lenguaje Emergente', desc: 'Habla 30m con persona real. Prioriza tolerar la ambigüedad y el flujo.' }]
+                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Lenguaje Emergente', desc: 'Habla 30m con persona real. Prioriza tolerar la ambigüedad y el flujo.' }]
                 },
                 'friday': {
-                    title: 'Viernes: Interferencia Contextual', description: 'Obliga al cerebro a discriminar reglas en tiempo real.',
-                    phases: isBeginner ? [...globalPhases, { name: 'Bloque 2 Extra', desc: 'Habla con IA o repite ejercicios previos.' }] : [
-                        { name: 'Fase 1: Mosaico Visual', desc: 'PROHIBIDO clase nueva. Ve 15 mins de repasos Lun-Jue a 1.5x saltando aleatoriamente.' },
-                        { name: 'Fase 2: Intercalada', desc: 'Mezcla tiempos verbales y usa conectores avanzados.' }
-                    ]
+                    title: 'Viernes: Producción Oral', description: 'Consolida la fluidez de la semana.',
+                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Producción Intercalada', desc: 'Graba respuestas largas mezclando tiempos verbales y usa conectores avanzados.' }]
                 },
                 'saturday': {
-                    title: 'Sábado: Consolidación', description: 'Independiza el conocimiento. CERO videos hoy.',
-                    phases: isBeginner ? [
-                        { name: 'Interferencia', desc: 'Repasos aleatorios de clases previas.' },
-                        { name: 'Repetición Espaciada', desc: '20-30 mins tarjetas de producción inversa.' }
-                    ] : [
-                        { name: 'Repetición Espaciada', desc: '20-30 mins de Anki/RemNote.' },
-                        { name: 'Interacción', desc: 'Diálogo en tiempo real o monólogo continuo.' }
-                    ]
+                    title: 'Sábado: Transferencia', description: 'Último día de avance de la semana.',
+                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (20-30m): Repetición Espaciada', desc: 'Dedica tiempo a tarjetas de producción inversa en Anki o RemNote.' }]
                 },
                 'sunday': {
-                    title: 'Domingo: Descompresión', description: 'Recuperación neuroquímica.',
-                    phases: isBeginner ? [
-                        { name: 'Repaso Ligero', desc: '20-30 mins de Anki.' },
-                        { name: 'Lectura', desc: 'Lectura ligera del libro de repaso.' }
-                    ] : [
-                        { name: 'Exposición Pasiva', desc: 'Consumo por entretenimiento sin estudio consciente.' }
+                    title: 'Domingo: Repaso General (Radio)', description: 'Repaso de lo visto los días anteriores y práctica extra en la tarde.',
+                    phases: [
+                        { name: 'Mañana: Repaso Activo (Radio)', desc: 'Escucha de nuevo los repasos de las clases de la semana e intenta responder antes que el profesor.' },
+                        { name: 'Tarde: Práctica Libre', desc: 'Interacción oral no guionizada, Anki, o simplemente consume contenido nativo para afianzar.' }
                     ]
                 }
             };
@@ -265,21 +244,15 @@
                 let parsed = saved ? JSON.parse(saved) : null;
                 if (!parsed) {
                     parsed = {
-                        streak: 0, lastActiveDate: null,
                         completed: { beginner: [], intermediate: [], advanced: [] },
                         reviews: { beginner: [], intermediate: [], advanced: [] },
                         bookmarks: { beginner: [], intermediate: [], advanced: [] },
-                        notes: {}, chunks: {}, routineProgress: {},
-                        streakFreezes: 3, lastFreezeRefillMonth: new Date().toISOString().slice(0, 7)
+                        notes: {}, chunks: {}, routineProgress: {}
                     };
                 } else {
                     if (!parsed.routineProgress) parsed.routineProgress = {};
                     if (!parsed.bookmarks) parsed.bookmarks = { beginner: [], intermediate: [], advanced: [] };
                     if (!parsed.chunks) parsed.chunks = {};
-                    if (parsed.streakFreezes === undefined) {
-                        parsed.streakFreezes = 3;
-                        parsed.lastFreezeRefillMonth = new Date().toISOString().slice(0, 7);
-                    }
                 }
                 return parsed;
             });
@@ -287,75 +260,16 @@
             React.useEffect(() => { localStorage.setItem('lingoTubeData', JSON.stringify(data)); }, [data]);
 
             const [courseData, setCourseData] = React.useState(() => {
-                const saved = localStorage.getItem('lingoTubeCourseData_v5');
+                const saved = localStorage.getItem('lingoTubeCourseData_v6');
                 const defaultData = { beginner: [], intermediate: [], advanced: [], beginnerReview: [], intermediateReview: [], advancedReview: [] };
                 return saved ? { ...defaultData, ...JSON.parse(saved) } : defaultData;
             });
 
-            React.useEffect(() => { localStorage.setItem('lingoTubeCourseData_v5', JSON.stringify(courseData)); }, [courseData]);
+            React.useEffect(() => { localStorage.setItem('lingoTubeCourseData_v6', JSON.stringify(courseData)); }, [courseData]);
 
             const updateCourseData = (levelKey, levelData) => setCourseData(prev => ({ ...prev, [levelKey]: levelData }));
 
-            const [streakIncreased, setStreakIncreased] = React.useState(false);
-
-            React.useEffect(() => {
-                setData(prev => {
-                    const today = new Date();
-                    const todayStr = today.toDateString();
-                    const currentMonthStr = today.getFullYear() + "-" + (today.getMonth() + 1).toString().padStart(2, '0');
-                    
-                    let newState = { ...prev };
-                    let stateChanged = false;
-
-                    if (newState.lastFreezeRefillMonth !== currentMonthStr) {
-                        newState.streakFreezes = 3;
-                        newState.lastFreezeRefillMonth = currentMonthStr;
-                        stateChanged = true;
-                    }
-
-                    if (newState.lastActiveDate && newState.lastActiveDate !== todayStr) {
-                        const lastDate = new Date(newState.lastActiveDate);
-                        const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                        const lastDateMidnight = new Date(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-                        const diffDays = Math.floor((todayMidnight.getTime() - lastDateMidnight.getTime()) / (1000 * 60 * 60 * 24));
-
-                        if (diffDays > 1) {
-                            const missedDays = diffDays - 1;
-                            if (newState.streakFreezes >= missedDays) {
-                                newState.streakFreezes -= missedDays;
-                                const yesterday = new Date(todayMidnight);
-                                yesterday.setDate(yesterday.getDate() - 1);
-                                newState.lastActiveDate = yesterday.toDateString();
-                                stateChanged = true;
-                            } else {
-                                if (newState.streak !== 0) { newState.streak = 0; stateChanged = true; }
-                            }
-                        }
-                    }
-                    return stateChanged ? newState : prev;
-                });
-            }, []);
-
-            const updateActivity = () => {
-                const today = new Date().toDateString();
-                setData(prev => {
-                    if (prev.lastActiveDate === today) return prev; 
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    const keptStreak = prev.lastActiveDate === yesterday.toDateString();
-                    
-                    if (keptStreak || prev.streak === 0) {
-                        setStreakIncreased(true);
-                        setTimeout(() => setStreakIncreased(false), 2000);
-                        confetti({ particleCount: 50, spread: 60, origin: { y: 0.1 }, colors: ['#ffc800', '#ff4b4b'], zIndex: 100 });
-                    }
-
-                    return { ...prev, streak: keptStreak ? prev.streak + 1 : 1, lastActiveDate: today };
-                });
-            };
-
             const toggleProgress = (level, classId, type) => {
-                updateActivity();
                 setData(prev => {
                     const isDone = prev[type][level].includes(classId);
                     const newState = { ...prev };
@@ -390,7 +304,6 @@
             };
 
             const toggleRoutinePhase = (dateStr, phaseIdx, totalPhases) => {
-                updateActivity();
                 setData(prev => {
                     const todayProgress = prev.routineProgress?.[dateStr] || [];
                     const isDone = todayProgress.includes(phaseIdx);
@@ -404,12 +317,10 @@
             };
 
             const saveNote = (classKey, text) => {
-                updateActivity();
                 setData(prev => ({ ...prev, notes: { ...prev.notes, [classKey]: text } }));
             };
 
             const saveChunk = (classKey, text) => {
-                updateActivity();
                 setData(prev => ({ ...prev, chunks: { ...(prev.chunks || {}), [classKey]: text } }));
             };
 
@@ -466,7 +377,7 @@
                 else alert("No se encontraron los archivos .csv. Asegúrate de que estén subidos a GitHub.");
             };
 
-            return { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData, syncFromServer };
+            return { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, exportData, importData, syncFromServer };
         }
 
         const getOffset = (index) => {
@@ -479,31 +390,85 @@
             return 0;
         };
         
+        const BookmarkCard = ({ lvl, classId, note, chunks, displayTitle, toggleBookmark, setCurrentLevel, setSelectedClass, saveChunk, saveNote, setFullScreenEdit }) => {
+            const [expanded, setExpanded] = React.useState(false);
+            const classKey = `${lvl.key}-${classId}`;
+            return (
+                <div className="bg-surface border-2 border-orange-500/30 rounded-2xl p-4 transition-all shadow-md animate-[slideUp_0.3s_ease-out]">
+                    <div className="flex justify-between items-start mb-2 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+                        <div className="flex-1">
+                            <span className={`text-xs font-bold uppercase tracking-wider ${lvl.color} ${lvl.bg} px-2 py-1 rounded-md inline-block mb-1`}>{lvl.label} • #{classId}</span>
+                            <h3 className="font-bold text-white leading-tight pr-2">{displayTitle}</h3>
+                        </div>
+                        <div className="flex gap-2">
+                            <Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={20} className="text-duotext" />
+                            <div onClick={(e) => { e.stopPropagation(); toggleBookmark(lvl.key, classId); }}>
+                                <Icon name="Bookmark" size={20} color="#f97316"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    {expanded ? (
+                        <div className="mt-4 animate-[slideUp_0.2s_ease-out]">
+                            <div className="bg-darker p-3 rounded-2xl border border-purple-500/30 mb-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-purple-400">
+                                        <Icon name="Zap" size={16} /> Estructuras / Chunks
+                                    </label>
+                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'chunks' })} className="flex items-center gap-1 text-[10px] bg-purple-500/20 px-2 py-1 rounded text-purple-300 hover:bg-purple-500/40 transition-colors uppercase tracking-wider font-bold">
+                                        <Icon name="Maximize2" size={12} /> Expandir
+                                    </button>
+                                </div>
+                                <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 resize-none h-20 font-mono text-[13px]" placeholder="Ej. ==cost an arm and a leg==" value={chunks} onChange={(e) => saveChunk(classKey, e.target.value)}></textarea>
+                            </div>
+                            <div className="bg-darker p-3 rounded-2xl border border-duogray/50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="flex items-center gap-2 text-sm font-bold text-duotext">
+                                        <Icon name="BookOpen" size={16} /> Mis Notas
+                                    </label>
+                                    <button onClick={() => setFullScreenEdit({ classKey, type: 'notes' })} className="flex items-center gap-1 text-[10px] bg-white/10 px-2 py-1 rounded text-white/70 hover:bg-white/20 transition-colors uppercase tracking-wider font-bold">
+                                        <Icon name="Maximize2" size={12} /> Expandir
+                                    </button>
+                                </div>
+                                <textarea className="w-full bg-dark border-2 border-duogray rounded-xl p-3 text-white focus:outline-none focus:border-duoblue resize-none h-20 text-[14px]" placeholder="Escribe tus apuntes libres aquí..." value={note} onChange={(e) => saveNote(classKey, e.target.value)}></textarea>
+                            </div>
+                            <button className="mt-4 duo-btn w-full bg-duoblue text-white font-bold py-3 rounded-xl text-sm" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>Ir a la clase completa</button>
+                        </div>
+                    ) : (
+                        <div className="mt-3 cursor-pointer" onClick={() => setExpanded(true)}>
+                            {chunks && (
+                                <div className="bg-dark p-2.5 rounded-xl border border-purple-500/20 mb-2">
+                                    <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mb-1"><Icon name="Zap" size={12} /> Chunks:</div>
+                                    <div className="text-sm text-purple-100/90 line-clamp-2 font-mono text-[13px] whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(chunks)} />
+                                </div>
+                            )}
+                            {note && (
+                                <div className="bg-darker p-2.5 rounded-xl border border-duogray/50">
+                                    <div className="flex items-center gap-1 text-xs font-bold text-duotext mb-1"><Icon name="BookOpen" size={12} /> Apuntes:</div>
+                                    <div className="text-sm text-white/80 line-clamp-2 leading-snug whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(note)} />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         const App = () => {
-            const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, streakIncreased, exportData, importData, syncFromServer } = useAppStore();
+            const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, exportData, importData, syncFromServer } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState('beginner');
             const [selectedClass, setSelectedClass] = React.useState(null);
             const [isRoutineOpen, setIsRoutineOpen] = React.useState(false);
             const [isCourseInfoOpen, setIsCourseInfoOpen] = React.useState(false); 
-            const [isStreakModalOpen, setIsStreakModalOpen] = React.useState(false);
-            const [dailyQuote, setDailyQuote] = React.useState('');
-            const [streakQuote, setStreakQuote] = React.useState('');
             const [showScrollTop, setShowScrollTop] = React.useState(false);
             
             // Estados para visualización a pantalla completa
             const [descExpanded, setDescExpanded] = React.useState(false);
-            const [fullScreenNoteText, setFullScreenNoteText] = React.useState(null); // Para notas leídas desde el CSV
-            const [fullScreenEdit, setFullScreenEdit] = React.useState(null); // Para editar apuntes/chunks { classKey, type: 'notes'|'chunks' }
+            const [fullScreenNoteText, setFullScreenNoteText] = React.useState(null); 
+            const [fullScreenEdit, setFullScreenEdit] = React.useState(null); 
             
             const activeNodeRef = React.useRef(null);
-
-            React.useEffect(() => {
-                setDailyQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
-                setStreakQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
-            }, []);
-
-            React.useEffect(() => { if (streakIncreased) setIsStreakModalOpen(true); }, [streakIncreased]);
 
             React.useEffect(() => {
                 const autoLoad = async () => {
@@ -556,70 +521,12 @@
                             LingoTube
                         </div>
                         <div className="flex gap-4 font-bold text-lg">
-                            <button onClick={() => setIsStreakModalOpen(true)} className="flex items-center gap-1 text-orange-400 hover:text-orange-300 transition-all relative">
-                                <div className={`transition-all duration-300 flex items-center gap-1 ${streakIncreased ? 'scale-125 text-orange-500 drop-shadow-[0_0_8px_rgba(255,165,0,0.8)]' : ''}`}>
-                                    <Icon name="Flame" color="currentColor" className={data.streak > 0 ? 'animate-pulse-glow' : ''} />
-                                    <span>{data.streak}</span>
-                                </div>
-                                {streakIncreased && <span className="absolute -top-4 left-6 text-orange-500 font-black text-lg animate-float-up pointer-events-none">+1</span>}
-                            </button>
                             <div className="flex items-center gap-1 text-duoblue">
                                 <Icon name="CheckCircle" color="currentColor" />
                                 <span>{totalClassesDone}</span>
                             </div>
                         </div>
                     </header>
-                );
-            };
-
-            const renderStreakModal = () => {
-                if (!isStreakModalOpen) return null;
-                const daysOfWeek = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-                const todayIdx = currentDay === 0 ? 6 : currentDay - 1;
-                const { streak, streakFreezes } = data;
-
-                return (
-                    <div className="fixed inset-0 bg-dark/95 z-50 flex flex-col items-center justify-center p-6 animate-[scaleIn_0.2s_ease-out]">
-                        <button onClick={() => setIsStreakModalOpen(false)} className="absolute top-6 right-6 text-duotext hover:text-white bg-surface p-2 rounded-full"><Icon name="X" /></button>
-                        
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-orange-500/20 blur-3xl rounded-full scale-150"></div>
-                            <Icon name="Flame" color="#ff9600" size={120} className="drop-shadow-[0_0_15px_rgba(255,150,0,0.8)] animate-pulse-glow relative z-10" />
-                        </div>
-                        
-                        <h2 className="text-4xl font-black text-white mt-6 mb-2">{streak} {streak === 1 ? 'Día' : 'Días'}</h2>
-                        <p className="text-lg font-bold text-orange-400 mb-8 tracking-wide uppercase">¡Racha actual!</p>
-
-                        <div className="bg-surface border-2 border-duogray rounded-3xl p-6 w-full max-w-sm mb-6 shadow-2xl">
-                            <div className="flex justify-between items-center w-full">
-                                {daysOfWeek.map((dayLabel, idx) => {
-                                    const isLit = streak >= 7 || (idx <= todayIdx && idx > todayIdx - streak) || (todayIdx - streak < 0 && idx >= 7 + (todayIdx - streak));
-                                    const isToday = idx === todayIdx;
-                                    return (
-                                        <div key={idx} className="flex flex-col items-center gap-2">
-                                            <span className={`text-xs font-bold ${isToday ? 'text-white' : 'text-duotext'}`}>{dayLabel}</span>
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${isLit ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(255,150,0,0.6)]' : 'bg-darker border-2 border-duogray text-transparent'}`}>
-                                                {isLit && <Icon name="Check" size={16} />}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        <div className="bg-surface border-2 border-duogray rounded-2xl p-4 w-full max-w-sm mb-6 flex items-center justify-between shadow-lg">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400"><Icon name="Snowflake" size={24} /></div>
-                                <div><h3 className="font-bold text-white text-sm">Comodines de Racha</h3><p className="text-xs text-duotext">Te salvan si fallas un día (Mensual)</p></div>
-                            </div>
-                            <div className="text-2xl font-black text-blue-400">{streakFreezes}/3</div>
-                        </div>
-
-                        <div className="max-w-sm text-center px-4 mb-10">
-                            <p className="text-duotext italic text-sm leading-relaxed">"{streakQuote}"</p>
-                        </div>
-                        <button onClick={() => setIsStreakModalOpen(false)} className="duo-btn w-full max-w-sm bg-duoblue hover:bg-duoblueDark text-white font-bold py-4 rounded-2xl border-[#1899d6] text-lg uppercase tracking-wider shadow-lg">Continuar</button>
-                    </div>
                 );
             };
 
@@ -803,40 +710,7 @@
                                     const displayTitle = courseInfo && courseInfo.title ? courseInfo.title : `Clase ${classId}`;
                                     const note = data.notes[`${lvl.key}-${classId}`] || '';
                                     const chunks = data.chunks[`${lvl.key}-${classId}`] || '';
-                                    
-                                    // REEMPLAZO DEL COMPONENTE BOOKMARKCARD POR CODIGO INLINE PARA EVITAR ERROR REACT #310
-                                    const classKey = `${lvl.key}-${classId}`;
-                                    return (
-                                        <div key={`${lvl.key}-${classId}`} className="bg-surface border-2 border-orange-500/30 rounded-2xl p-4 transition-all shadow-md animate-[slideUp_0.3s_ease-out]">
-                                            <div className="flex justify-between items-start mb-2 cursor-pointer" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>
-                                                <div className="flex-1">
-                                                    <span className={`text-xs font-bold uppercase tracking-wider ${lvl.color} ${lvl.bg} px-2 py-1 rounded-md inline-block mb-1`}>{lvl.label} • #{classId}</span>
-                                                    <h3 className="font-bold text-white leading-tight pr-2">{displayTitle}</h3>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <div onClick={(e) => { e.stopPropagation(); toggleBookmark(lvl.key, classId); }}>
-                                                        <Icon name="Bookmark" size={20} color="#f97316"/>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-3 cursor-pointer" onClick={() => { setCurrentLevel(lvl.key); setSelectedClass(classId); }}>
-                                                {chunks && (
-                                                    <div className="bg-dark p-2.5 rounded-xl border border-purple-500/20 mb-2">
-                                                        <div className="flex items-center gap-1 text-xs font-bold text-purple-400 mb-1"><Icon name="Zap" size={12} /> Chunks:</div>
-                                                        <div className="text-sm text-purple-100/90 line-clamp-2 font-mono text-[13px] whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(chunks)} />
-                                                    </div>
-                                                )}
-                                                {note && (
-                                                    <div className="bg-darker p-2.5 rounded-xl border border-duogray/50">
-                                                        <div className="flex items-center gap-1 text-xs font-bold text-duotext mb-1"><Icon name="BookOpen" size={12} /> Apuntes:</div>
-                                                        <div className="text-sm text-white/80 line-clamp-2 leading-snug whitespace-pre-wrap" dangerouslySetInnerHTML={renderRichTextHTML(note)} />
-                                                    </div>
-                                                )}
-                                                <div className="text-center mt-2 text-[10px] font-bold text-duoblue uppercase tracking-wider">Toca para abrir clase y editar</div>
-                                            </div>
-                                        </div>
-                                    );
+                                    return <BookmarkCard key={`${lvl.key}-${classId}`} lvl={lvl} classId={classId} note={note} chunks={chunks} displayTitle={displayTitle} toggleBookmark={toggleBookmark} setCurrentLevel={setCurrentLevel} setSelectedClass={setSelectedClass} saveChunk={saveChunk} saveNote={saveNote} setFullScreenEdit={setFullScreenEdit} />;
                                 }))}
                             </div>
                         )}
@@ -1182,7 +1056,6 @@
             return (
                 <div className="min-h-screen relative font-sans overflow-x-hidden">
                     {renderHeader()}
-                    {renderStreakModal()}
                     <main>
                         {currentTab === 'learn' && renderLearnTab()}
                         {currentTab === 'bookmarks' && renderBookmarksTab()}
