@@ -44,8 +44,7 @@
                     },
                     animation: {
                         'bounce-slow': 'bounce 2s infinite',
-                        'ping-once': 'ping 0.5s cubic-bezier(0, 0, 0.2, 1) 1',
-                        'pulse-glow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'scale-in': 'scaleIn 0.2s ease-out forwards',
                     }
                 }
             }
@@ -65,8 +64,6 @@
 
         @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes scaleIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-30px) scale(1.5); opacity: 0; } }
-        .animate-float-up { animation: floatUp 1.5s ease-out forwards; }
         
         .pt-safe { padding-top: env(safe-area-inset-top); }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -110,16 +107,13 @@
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                // Subrayado ==texto== 
                 .replace(/==([\s\S]*?)==/g, '<mark class="bg-yellow-500/80 text-darker font-bold rounded px-1.5 py-0.5 shadow-sm">$1</mark>')
-                // Negrita *texto*
                 .replace(/\*([\s\S]*?)\*/g, '<strong class="font-bold text-white">$1</strong>')
-                // Cursiva _texto_
                 .replace(/_([\s\S]*?)_/g, '<em class="italic text-duoblue">$1</em>');
             return { __html: html };
         };
 
-        // --- LECTOR DE CSV ROBUSTO DEFINITIVO (Caracter por Caracter) ---
+        // --- LECTOR DE CSV ROBUSTO ---
         const parseCSVText = (text) => {
             const parsedData = [];
             let inQuotes = false;
@@ -184,53 +178,94 @@
         const CLASS_DURATION = 49 + (31 / 60); 
         const REVIEW_DURATION = 18 + (12 / 60); 
 
+        const MOTIVATIONAL_QUOTES = [
+            "La práctica distribuida mejora la retención a largo plazo en un 200%.",
+            "El aprendizaje intercalado aumenta la fluidez real en un 43%.",
+            "Dormir después de aprender consolida las conexiones sinápticas del vocabulario.",
+            "Cometer errores señala a tu cerebro qué circuitos debe reforzar. ¡Equivócate!",
+            "Recordar activamente fortalece la memoria mucho más que leer pasivamente.",
+            "La fatiga cognitiva significa que estás creando nuevas redes neuronales.",
+            "Fluidez es automatizar el acceso a palabras mediante mielinización."
+        ];
+
         const STUDY_PLAN = {
-            1: { type: 'monday', name: 'Lunes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            2: { type: 'tuesday', name: 'Martes de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            3: { type: 'wednesday', name: 'Miércoles de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            4: { type: 'thursday', name: 'Jueves de Avance', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
-            5: { type: 'friday', name: 'Viernes de Avance', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'BookOpen' },
-            6: { type: 'saturday', name: 'Sábado de Avance', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'BookOpen' },
-            0: { type: 'sunday', name: 'Domingo de Repaso General', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Radio' }
+            1: { type: 'monday', name: 'Día A: Producción', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            2: { type: 'tuesday', name: 'Día B: Fricción Social', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'Users' },
+            3: { type: 'wednesday', name: 'Día A: Producción', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'BookOpen' },
+            4: { type: 'thursday', name: 'Día B: Fricción Social', color: 'bg-planMonday', textColor: 'text-planMonday', icon: 'Users' },
+            5: { type: 'friday', name: 'Día A: Producción', color: 'bg-planFriday', textColor: 'text-planFriday', icon: 'BookOpen' },
+            6: { type: 'saturday', name: 'Día B: Fricción Social', color: 'bg-planSaturday', textColor: 'text-planSaturday', icon: 'Users' },
+            0: { type: 'sunday', name: 'Día C: Repaso General', color: 'bg-planSunday', textColor: 'text-planSunday', icon: 'Radio' }
         };
 
         const getPlanDetails = (type) => {
-            const advancePhases = [
-                { name: 'Mañana (0-15m): Repaso Activo', desc: 'Pausa el video al ver el estímulo, intenta explicar en voz alta y reanuda para comprobar.' },
-                { name: 'Mañana (15-60m): Consumo y Anclaje', desc: 'Atención a la prosodia. Usa Método Cornell para preguntas de recuperación.' },
-                { name: 'Tarde (30-45m): Práctica Extra', desc: 'Realiza la práctica asignada para este día (Shadowing, Blurting, etc.).' }
-            ];
+            const classPhase = { 
+                name: 'Mañana (50m): Clase Principal', 
+                desc: 'Aplica Evocación Activa: pausa el video antes de que responda el profesor y articula en voz alta. Cero toma de notas pasiva.' 
+            };
+            const warmupPhase = { 
+                name: 'Constante (15m): Flashcards Orales', 
+                desc: 'Al ver el estímulo, evoca el "chunk" en tu mente y articúlalo en voz alta antes de voltear la tarjeta.' 
+            };
 
             const plans = {
                 'monday': {
-                    title: 'Lunes: Modelado Fonológico', description: 'Día de avance y práctica oral.',
-                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Shadowing', desc: 'Repite en voz alta con fracción de segundo de retraso. Imita cadencia y emoción.' }]
+                    title: 'Lunes: Producción Autónoma', description: 'Usarás el writing como preparación para tu speaking bajo presión.',
+                    phases: [
+                        classPhase, warmupPhase,
+                        { name: 'Tarde (15m): Free Recall + AWE', desc: 'Evita copywork. Lee/escucha un tema, escóndelo y escribe lo que recuerdes. Pasa tu texto por IA (ChatGPT/Grammarly) para corregir y explicar reglas.' },
+                        { name: 'Tarde (15m): Técnica 4/3/2', desc: 'Habla del mismo tema por 4 minutos continuos. Reinicia y repítelo en 3 minutos. Finaliza comprimiendo en 2 minutos para forzar hiperfluidez.' },
+                        { name: 'Tarde (20m): Shadowing', desc: 'Escucha un audio nativo (60s). Haz mumbling, luego lee sincronizado y finalmente imita a ciegas la cadencia y emoción.' }
+                    ]
                 },
                 'tuesday': {
-                    title: 'Martes: Automatización bajo presión', description: 'Transfiere el control a la memoria procedimental.',
-                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Técnica 4/3/2', desc: 'Graba 4m sobre un tema. Repite en 3m. Finalmente en 2m.' }]
+                    title: 'Martes: Reconstrucción y Fricción', description: 'Entrenamos precisión gramatical mediante el oído y contacto humano.',
+                    phases: [
+                        classPhase, warmupPhase,
+                        { name: 'Tarde (20m): Dictogloss + AWE', desc: 'Escucha un audio y anota palabras clave. Reconstruye el texto completo con tus apuntes. Evalúa con IA pidiendo corrección de conectores y sintaxis.' },
+                        { name: 'Tarde (35-40m): Conversación Real', desc: 'Charla con un tutor o compañero (NO IA). Interrumpe, debate, y usa circunloquio para explicar palabras que olvides. Tolera la ambigüedad.' }
+                    ]
                 },
                 'wednesday': {
-                    title: 'Miércoles: Activación Léxica', description: 'Fuerza el conocimiento pasivo hacia la fase activa.',
-                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Vaciado o Protégé', desc: 'Blurting: escribe sin parar 5-10m lo que recuerdes. O Protégé: da clase de 5m a alumno imaginario.' }]
+                    title: 'Miércoles: Producción Autónoma', description: 'Usarás el writing como preparación para tu speaking bajo presión.',
+                    phases: [
+                        classPhase, warmupPhase,
+                        { name: 'Tarde (15m): Free Recall + AWE', desc: 'Evita copywork. Lee/escucha un tema, escóndelo y escribe lo que recuerdes. Pasa tu texto por IA (ChatGPT/Grammarly) para corregir y explicar reglas.' },
+                        { name: 'Tarde (15m): Técnica 4/3/2', desc: 'Habla del mismo tema por 4 minutos continuos. Reinicia y repítelo en 3 minutos. Finaliza comprimiendo en 2 minutos para forzar hiperfluidez.' },
+                        { name: 'Tarde (20m): Shadowing', desc: 'Escucha un audio nativo (60s). Haz mumbling, luego lee sincronizado y finalmente imita a ciegas la cadencia y emoción.' }
+                    ]
                 },
                 'thursday': {
-                    title: 'Jueves: Interacción Social', description: 'Pierde el miedo al estrés conversacional.',
-                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Lenguaje Emergente', desc: 'Habla 30m con persona real. Prioriza tolerar la ambigüedad y el flujo.' }]
+                    title: 'Jueves: Reconstrucción y Fricción', description: 'Entrenamos precisión gramatical mediante el oído y contacto humano.',
+                    phases: [
+                        classPhase, warmupPhase,
+                        { name: 'Tarde (20m): Dictogloss + AWE', desc: 'Escucha un audio y anota palabras clave. Reconstruye el texto completo con tus apuntes. Evalúa con IA pidiendo corrección de conectores y sintaxis.' },
+                        { name: 'Tarde (35-40m): Conversación Real', desc: 'Charla con un tutor o compañero (NO IA). Interrumpe, debate, y usa circunloquio para explicar palabras que olvides. Tolera la ambigüedad.' }
+                    ]
                 },
                 'friday': {
-                    title: 'Viernes: Producción Oral', description: 'Consolida la fluidez de la semana.',
-                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (30-45m): Producción Intercalada', desc: 'Graba respuestas largas mezclando tiempos verbales y usa conectores avanzados.' }]
+                    title: 'Viernes: Producción Autónoma', description: 'Usarás el writing como preparación para tu speaking bajo presión.',
+                    phases: [
+                        classPhase, warmupPhase,
+                        { name: 'Tarde (15m): Free Recall + AWE', desc: 'Evita copywork. Lee/escucha un tema, escóndelo y escribe lo que recuerdes. Pasa tu texto por IA (ChatGPT/Grammarly) para corregir y explicar reglas.' },
+                        { name: 'Tarde (15m): Técnica 4/3/2', desc: 'Habla del mismo tema por 4 minutos continuos. Reinicia y repítelo en 3 minutos. Finaliza comprimiendo en 2 minutos para forzar hiperfluidez.' },
+                        { name: 'Tarde (20m): Shadowing', desc: 'Escucha un audio nativo (60s). Haz mumbling, luego lee sincronizado y finalmente imita a ciegas la cadencia y emoción.' }
+                    ]
                 },
                 'saturday': {
-                    title: 'Sábado: Transferencia', description: 'Último día de avance de la semana.',
-                    phases: [...advancePhases.slice(0,2), { name: 'Tarde (20-30m): Repetición Espaciada', desc: 'Dedica tiempo a tarjetas de producción inversa en Anki o RemNote.' }]
+                    title: 'Sábado: Reconstrucción y Fricción', description: 'Entrenamos precisión gramatical mediante el oído y contacto humano.',
+                    phases: [
+                        classPhase, warmupPhase,
+                        { name: 'Tarde (20m): Dictogloss + AWE', desc: 'Escucha un audio y anota palabras clave. Reconstruye el texto completo con tus apuntes. Evalúa con IA pidiendo corrección de conectores y sintaxis.' },
+                        { name: 'Tarde (35-40m): Conversación Real', desc: 'Charla con un tutor o compañero (NO IA). Interrumpe, debate, y usa circunloquio para explicar palabras que olvides. Tolera la ambigüedad.' }
+                    ]
                 },
                 'sunday': {
-                    title: 'Domingo: Repaso General (Radio)', description: 'Repaso de lo visto los días anteriores y práctica extra en la tarde.',
+                    title: 'Domingo: Descanso y Consolidación', description: 'Dale a tus redes ejecutivas un descanso neurológico.',
                     phases: [
-                        { name: 'Mañana: Repaso Activo (Radio)', desc: 'Escucha de nuevo los repasos de las clases de la semana e intenta responder antes que el profesor.' },
-                        { name: 'Tarde: Práctica Libre', desc: 'Interacción oral no guionizada, Anki, o simplemente consume contenido nativo para afianzar.' }
+                        { name: 'Mañana: Repaso (Modo Radio)', desc: 'Escucha los repasos de las clases anteriores de la semana y oblígate a responder antes que el profesor.' },
+                        warmupPhase,
+                        { name: 'Tarde: Lectura Placentera (Opc)', desc: 'Lee algo en inglés por puro placer, sin forzarte a escribir ni a aplicar técnicas de represión temporal.' }
                     ]
                 }
             };
@@ -461,6 +496,7 @@
             const [selectedClass, setSelectedClass] = React.useState(null);
             const [isRoutineOpen, setIsRoutineOpen] = React.useState(false);
             const [isCourseInfoOpen, setIsCourseInfoOpen] = React.useState(false); 
+            const [dailyQuote, setDailyQuote] = React.useState('');
             const [showScrollTop, setShowScrollTop] = React.useState(false);
             
             // Estados para visualización a pantalla completa
@@ -469,6 +505,10 @@
             const [fullScreenEdit, setFullScreenEdit] = React.useState(null); 
             
             const activeNodeRef = React.useRef(null);
+
+            React.useEffect(() => {
+                setDailyQuote(MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]);
+            }, []);
 
             React.useEffect(() => {
                 const autoLoad = async () => {
