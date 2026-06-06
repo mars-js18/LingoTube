@@ -43,7 +43,10 @@
                     },
                     animation: {
                         'bounce-slow': 'bounce 2s infinite',
-                        'scale-in': 'scaleIn 0.2s ease-out forwards',
+                        'scale-in': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'pop-in': 'popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                        'fade-in': 'fadeIn 0.2s ease-out forwards',
                     }
                 }
             }
@@ -61,8 +64,10 @@
         .path-node { position: relative; z-index: 10; }
         .node-connector { position: absolute; width: 4px; z-index: 1; }
 
-        @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes scaleIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes slideUp { 0% { transform: translateY(30px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+        @keyframes scaleIn { 0% { transform: scale(0.95); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 60% { transform: scale(1.02); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
         
         .pt-safe { padding-top: env(safe-area-inset-top); }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -439,7 +444,7 @@
                     </div>
 
                     {expanded ? (
-                        <div className="mt-4 animate-[slideUp_0.2s_ease-out]">
+                        <div className="mt-4 animate-slide-up">
                             <div className="bg-darker p-3 rounded-2xl border border-purple-500/30 mb-3">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="flex items-center gap-2 text-sm font-bold text-purple-400">
@@ -871,8 +876,8 @@
                 const ytReviewLink = courseData[`${currentLevel}Review`]?.find(c => c.id === selectedClass)?.videoUrl || null; 
 
                 return (
-                    <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4">
-                        <div className="bg-dark w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4 transform transition-all border-2 border-surface animate-[slideUp_0.3s_ease-out] max-h-[90vh] overflow-y-auto">
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+                        <div className="bg-dark w-full max-w-sm rounded-3xl p-6 flex flex-col gap-4 transform transition-all border-2 border-surface animate-pop-in max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/50">
                             <div className="flex justify-between items-start border-b border-surface pb-4 mb-2">
                                 <div className="pr-4">
                                     <div className="text-duotext text-sm font-bold uppercase tracking-wider mb-1">{currentLevel === 'beginner' ? 'Principiante' : currentLevel === 'intermediate' ? 'Intermedio' : 'Avanzado'} • #{selectedClass}</div>
@@ -958,7 +963,7 @@
             const renderFullScreenNote = () => {
                 if (!fullScreenNoteText) return null;
                 return (
-                    <div className="fixed inset-0 bg-darker z-[70] flex flex-col animate-[slideUp_0.2s_ease-out]">
+                    <div className="fixed inset-0 bg-darker z-[70] flex flex-col animate-slide-up">
                         <div className="flex justify-between items-center p-4 border-b border-surface bg-dark shadow-md shrink-0 pt-safe">
                             <h3 className="font-bold text-lg text-white flex items-center gap-2">
                                 <Icon name="BookOpen" className="text-duoblue" /> Apuntes de la Clase
@@ -991,7 +996,7 @@
                 const bgFocusClass = type === 'chunks' ? "focus:border-purple-500" : "focus:border-duoblue";
 
                 return (
-                    <div className="fixed inset-0 bg-darker z-[80] flex flex-col animate-[slideUp_0.2s_ease-out]">
+                    <div className="fixed inset-0 bg-darker z-[80] flex flex-col animate-slide-up">
                         <div className="flex justify-between items-center p-4 border-b border-surface bg-dark shadow-md shrink-0 pt-safe">
                             <h3 className={`font-bold text-lg flex items-center gap-2 ${colorClass}`}>
                                 <Icon name={iconName} /> {title}
@@ -1020,7 +1025,7 @@
             return (
                 <div className="min-h-screen relative font-sans overflow-x-hidden">
                     {renderHeader()}
-                    <main>
+                    <main className="animate-fade-in" key={currentTab}>
                         {currentTab === 'learn' && renderLearnTab()}
                         {currentTab === 'bookmarks' && renderBookmarksTab()}
                         {currentTab === 'stats' && renderStatsTab()}
@@ -1028,7 +1033,7 @@
                     </main>
                     
                     {showScrollTop && currentTab === 'learn' && (
-                        <button onClick={scrollToTop} className="fixed bottom-20 right-4 w-12 h-12 bg-duoblue hover:bg-duoblueDark text-white rounded-full shadow-lg flex items-center justify-center z-30 transition-all animate-[scaleIn_0.2s_ease-out]" aria-label="Subir"><Icon name="ArrowUp" size={24} /></button>
+                        <button onClick={scrollToTop} className="fixed bottom-20 right-4 w-12 h-12 bg-duoblue hover:bg-duoblueDark text-white rounded-full shadow-lg flex items-center justify-center z-30 transition-all animate-scale-in" aria-label="Subir"><Icon name="ArrowUp" size={24} /></button>
                     )}
 
                     {renderTabBar()}
