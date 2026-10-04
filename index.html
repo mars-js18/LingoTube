@@ -282,6 +282,295 @@
             return plans[type];
         };
 
+        // --- UTILIDADES DE FECHA Y FORMATO CLARO ---
+        const formatBackupDate = (isoOrTs) => {
+            if (!isoOrTs) return 'Fecha desconocida';
+            const d = new Date(isoOrTs);
+            if (isNaN(d.getTime())) return 'Fecha inválida';
+            const pad = (n) => String(n).padStart(2, '0');
+            const day = pad(d.getDate());
+            const month = pad(d.getMonth() + 1);
+            const year = d.getFullYear();
+            let hours = d.getHours();
+            const minutes = pad(d.getMinutes());
+            const seconds = pad(d.getSeconds());
+            const ampm = hours >= 12 ? 'pm' : 'am';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${day}/${month}/${year} a las ${pad(hours)}:${minutes}:${seconds} ${ampm}`;
+        };
+
+        const getFileTimestamp = (date = new Date()) => {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}_${pad(date.getHours())}h${pad(date.getMinutes())}m${pad(date.getSeconds())}s`;
+        };
+
+        // --- SISTEMA DE COPIA DE SEGURIDAD LOCAL (IndexedDB + File System Access) ---
+        const BackupDB = {
+            dbPromise: null,
+            getDB() {
+                if (!this.dbPromise) {
+                    this.dbPromise = new Promise((resolve) => {
+                        if (!window.indexedDB) {
+                            resolve(null);
+                            return;
+                        }
+                        const req = indexedDB.open('LingoTubeLocalBackups', 1);
+                        req.onupgradeneeded = (e) => {
+                            const db = e.target.result;
+                            if (!db.objectStoreNames.contains('snapshots')) {
+                                db.createObjectStore('snapshots', { keyPath: 'id' });
+                            }
+                            if (!db.objectStoreNames.contains('handles')) {
+                                db.createObjectStore('handles');
+                            }
+                        };
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = (err) => {
+                            console.warn("IndexedDB no disponible:", err);
+                            resolve(null);
+                        };
+                    });
+                }
+                return this.dbPromise;
+            },
+
+            async getStoredHandle() {
+                try {
+                    const db = await this.getDB();
+                    if (!db) return null;
+                    return new Promise((resolve) => {
+                        const tx = db.transaction('handles', 'readonly');
+                        const store = tx.objectStore('handles');
+                        const req = store.get('backupDirHandle');
+                        req.onsuccess = () => resolve(req.result || null);
+                        req.onerror = () => resolve(null);
+                    });
+                } catch {
+                    return null;
+                }
+            },
+
+            async saveStoredHandle(handle) {
+                try {
+                    const db = await this.getDB();
+                    if (!db) return;
+                    return new Promise((resolve) => {
+                        const tx = db.transaction('handles', 'readwrite');
+                        const store = tx.objectStore('handles');
+                        if (handle) store.put(handle, 'backupDirHandle');
+                        else store.delete('backupDirHandle');
+                        tx.oncomplete = () => resolve(true);
+                        tx.onerror = () => resolve(false);
+                    });
+                } catch {
+                    return false;
+                }
+            },
+
+            async getAllSnapshots() {
+                try {
+                    const db = await this.getDB();
+                    if (!db) {
+                        const raw = localStorage.getItem('lingoTubeSnapshotsFallback');
+                        return raw ? JSON.parse(raw) : [];
+                    }
+                    return new Promise((resolve) => {
+                        const tx = db.transaction('snapshots', 'readonly');
+                        const store = tx.objectStore('snapshots');
+                        const req = store.getAll();
+                        req.onsuccess = () => {
+                            const items = req.result || [];
+                            items.sort((a, b) => b.id - a.id);
+                            resolve(items);
+                        };
+                        req.onerror = () => resolve([]);
+                    });
+                } catch {
+                    return [];
+                }
+            },
+
+            async saveSnapshot(dataObj, keepOnlyLatest = true) {
+                if (!dataObj || !dataObj.completed) return null;
+                
+                const now = new Date();
+                const totalClasses = (dataObj.completed.beginner?.length || 0) + 
+                                     (dataObj.completed.intermediate?.length || 0) + 
+                                     (dataObj.completed.advanced?.length || 0);
+                const totalReviews = (dataObj.reviews?.beginner?.length || 0) + 
+                                     (dataObj.reviews?.intermediate?.length || 0) + 
+                                     (dataObj.reviews?.advanced?.length || 0);
+                const totalNotes = Object.keys(dataObj.notes || {}).filter(k => dataObj.notes[k]?.trim()).length;
+                const totalChunks = Object.keys(dataObj.chunks || {}).filter(k => dataObj.chunks[k]?.trim()).length;
+
+                const snapshot = {
+                    id: now.getTime(),
+                    createdAt: now.toISOString(),
+                    displayDate: formatBackupDate(now),
+                    stats: {
+                        classes: totalClasses,
+                        reviews: totalReviews,
+                        notes: totalNotes,
+                        chunks: totalChunks
+                    },
+                    data: JSON.parse(JSON.stringify(dataObj))
+                };
+
+                try {
+                    const db = await this.getDB();
+                    if (!db) {
+                        let list = [];
+                        try {
+                            list = JSON.parse(localStorage.getItem('lingoTubeSnapshotsFallback') || '[]');
+                        } catch(e) {}
+                        if (keepOnlyLatest) {
+                            list = [snapshot];
+                        } else {
+                            list.unshift(snapshot);
+                            list = list.slice(0, 10);
+                        }
+                        localStorage.setItem('lingoTubeSnapshotsFallback', JSON.stringify(list));
+                        return snapshot;
+                    }
+
+                    return new Promise((resolve) => {
+                        const tx = db.transaction('snapshots', 'readwrite');
+                        const store = tx.objectStore('snapshots');
+                        if (keepOnlyLatest) {
+                            store.clear();
+                        }
+                        store.put(snapshot);
+                        tx.oncomplete = () => {
+                            if (!keepOnlyLatest) {
+                                try {
+                                    const delTx = db.transaction('snapshots', 'readwrite');
+                                    const delStore = delTx.objectStore('snapshots');
+                                    const req = delStore.getAll();
+                                    req.onsuccess = () => {
+                                        const all = req.result || [];
+                                        if (all.length > 10) {
+                                            all.sort((a,b) => b.id - a.id);
+                                            all.slice(10).forEach(old => delStore.delete(old.id));
+                                        }
+                                    };
+                                } catch(e) {}
+                            }
+                            resolve(snapshot);
+                        };
+                        tx.onerror = () => resolve(null);
+                    });
+                } catch {
+                    return null;
+                }
+            },
+
+            async deleteSnapshot(id) {
+                try {
+                    const db = await this.getDB();
+                    if (!db) {
+                        let list = JSON.parse(localStorage.getItem('lingoTubeSnapshotsFallback') || '[]');
+                        list = list.filter(item => item.id !== id);
+                        localStorage.setItem('lingoTubeSnapshotsFallback', JSON.stringify(list));
+                        return true;
+                    }
+                    return new Promise((resolve) => {
+                        const tx = db.transaction('snapshots', 'readwrite');
+                        tx.objectStore('snapshots').delete(id);
+                        tx.oncomplete = () => resolve(true);
+                        tx.onerror = () => resolve(false);
+                    });
+                } catch {
+                    return false;
+                }
+            },
+
+            async clearOldSnapshots() {
+                try {
+                    const snapshots = await this.getAllSnapshots();
+                    if (snapshots.length <= 1) return true;
+                    const latest = snapshots[0];
+                    const db = await this.getDB();
+                    if (!db) {
+                        localStorage.setItem('lingoTubeSnapshotsFallback', JSON.stringify([latest]));
+                        return true;
+                    }
+                    return new Promise((resolve) => {
+                        const tx = db.transaction('snapshots', 'readwrite');
+                        const store = tx.objectStore('snapshots');
+                        store.clear();
+                        store.put(latest);
+                        tx.oncomplete = () => resolve(true);
+                        tx.onerror = () => resolve(false);
+                    });
+                } catch {
+                    return false;
+                }
+            }
+        };
+
+        async function syncToLocalDirectory(dirHandle, dataObj, keepOnlyLatest = true) {
+            if (!dirHandle) return { success: false, reason: 'no_handle' };
+            try {
+                const opts = { mode: 'readwrite' };
+                let perm = await dirHandle.queryPermission(opts);
+                if (perm !== 'granted') {
+                    perm = await dirHandle.requestPermission(opts);
+                    if (perm !== 'granted') return { success: false, reason: 'permission_denied' };
+                }
+
+                const now = new Date();
+                const clearDate = formatBackupDate(now);
+                const fileTs = getFileTimestamp(now);
+
+                const backupPayload = {
+                    _lingoTubeBackupMeta: {
+                        fechaLegible: clearDate,
+                        timestampISO: now.toISOString(),
+                        version: '2.0',
+                        descripcion: "Copia de seguridad automática de LingoTube",
+                        clasesCompletadas: (dataObj.completed?.beginner?.length || 0) + (dataObj.completed?.intermediate?.length || 0) + (dataObj.completed?.advanced?.length || 0),
+                        repasosCompletados: (dataObj.reviews?.beginner?.length || 0) + (dataObj.reviews?.intermediate?.length || 0) + (dataObj.reviews?.advanced?.length || 0)
+                    },
+                    ...dataObj
+                };
+                const jsonContent = JSON.stringify(backupPayload, null, 2);
+
+                if (keepOnlyLatest) {
+                    const fileHandle = await dirHandle.getFileHandle('LingoTube_Ultimo_Respaldo.json', { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(jsonContent);
+                    await writable.close();
+
+                    try {
+                        for await (const [name] of dirHandle.entries()) {
+                            if (name.startsWith('LingoTube_Respaldo_') && name.endsWith('.json')) {
+                                await dirHandle.removeEntry(name);
+                            }
+                        }
+                    } catch(e) {}
+
+                    return { success: true, fileName: 'LingoTube_Ultimo_Respaldo.json', clearDate };
+                } else {
+                    const datedName = `LingoTube_Respaldo_${fileTs}.json`;
+                    const fileHandle = await dirHandle.getFileHandle(datedName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(jsonContent);
+                    await writable.close();
+
+                    const latestHandle = await dirHandle.getFileHandle('LingoTube_Ultimo_Respaldo.json', { create: true });
+                    const latestWritable = await latestHandle.createWritable();
+                    await latestWritable.write(jsonContent);
+                    await latestWritable.close();
+
+                    return { success: true, fileName: datedName, clearDate };
+                }
+            } catch (err) {
+                console.error("Error al sincronizar con carpeta local:", err);
+                return { success: false, reason: err.message };
+            }
+        }
+
         // --- ESTADO GLOBAL (Custom Hook) ---
         function useAppStore() {
             const [data, setData] = React.useState(() => {
@@ -302,7 +591,157 @@
                 return parsed;
             });
 
-            React.useEffect(() => { localStorage.setItem('lingoTubeData', JSON.stringify(data)); }, [data]);
+            // Ajustes y Estado de Copias de Seguridad
+            const [keepOnlyLatest, setKeepOnlyLatestState] = React.useState(() => {
+                const saved = localStorage.getItem('lingoTube_keepOnlyLatest');
+                return saved !== null ? JSON.parse(saved) : true;
+            });
+            const [snapshots, setSnapshots] = React.useState([]);
+            const [localDirHandle, setLocalDirHandle] = React.useState(null);
+            const [localDirName, setLocalDirName] = React.useState(() => localStorage.getItem('lingoTube_localDirName') || '');
+            const [lastBackupInfo, setLastBackupInfo] = React.useState(() => {
+                const saved = localStorage.getItem('lingoTube_lastBackupInfo');
+                return saved ? JSON.parse(saved) : null;
+            });
+            const [backupStatusMessage, setBackupStatusMessage] = React.useState('');
+
+            const setKeepOnlyLatest = async (val) => {
+                setKeepOnlyLatestState(val);
+                localStorage.setItem('lingoTube_keepOnlyLatest', JSON.stringify(val));
+                if (val) {
+                    await BackupDB.clearOldSnapshots();
+                    const all = await BackupDB.getAllSnapshots();
+                    setSnapshots(all);
+                }
+            };
+
+            // Inicializar snapshots y handle guardado
+            React.useEffect(() => {
+                BackupDB.getAllSnapshots().then(list => setSnapshots(list));
+                BackupDB.getStoredHandle().then(handle => {
+                    if (handle) {
+                        setLocalDirHandle(handle);
+                        setLocalDirName(handle.name || 'Carpeta Local');
+                    }
+                });
+            }, []);
+
+            // Guardado automático y respaldos en segundo plano con debounce
+            React.useEffect(() => {
+                localStorage.setItem('lingoTubeData', JSON.stringify(data));
+
+                const timer = setTimeout(async () => {
+                    const savedSnap = await BackupDB.saveSnapshot(data, keepOnlyLatest);
+                    if (savedSnap) {
+                        const all = await BackupDB.getAllSnapshots();
+                        setSnapshots(all);
+                        const info = {
+                            displayDate: savedSnap.displayDate,
+                            timestamp: savedSnap.createdAt
+                        };
+                        setLastBackupInfo(info);
+                        localStorage.setItem('lingoTube_lastBackupInfo', JSON.stringify(info));
+                    }
+
+                    if (localDirHandle) {
+                        await syncToLocalDirectory(localDirHandle, data, keepOnlyLatest);
+                    }
+                }, 1500);
+
+                return () => clearTimeout(timer);
+            }, [data, keepOnlyLatest, localDirHandle]);
+
+            const selectLocalFolder = async () => {
+                if (!('showDirectoryPicker' in window)) {
+                    alert("Tu navegador actual no permite acceso directo al explorador de archivos local. Las copias de seguridad se mantendrán automáticamente guardadas en la base de datos interna de tu navegador con fecha clara.");
+                    return;
+                }
+                try {
+                    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+                    if (handle) {
+                        await BackupDB.saveStoredHandle(handle);
+                        setLocalDirHandle(handle);
+                        setLocalDirName(handle.name);
+                        localStorage.setItem('lingoTube_localDirName', handle.name);
+                        
+                        const res = await syncToLocalDirectory(handle, data, keepOnlyLatest);
+                        if (res.success) {
+                            setBackupStatusMessage(`¡Carpeta vinculada! Se guardó ${res.fileName}`);
+                            setTimeout(() => setBackupStatusMessage(''), 4500);
+                        }
+                    }
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error("Error al seleccionar carpeta:", err);
+                        alert("No se pudo vincular la carpeta: " + err.message);
+                    }
+                }
+            };
+
+            const disconnectLocalFolder = async () => {
+                await BackupDB.saveStoredHandle(null);
+                setLocalDirHandle(null);
+                setLocalDirName('');
+                localStorage.removeItem('lingoTube_localDirName');
+                setBackupStatusMessage('Carpeta local de PC desvinculada.');
+                setTimeout(() => setBackupStatusMessage(''), 3500);
+            };
+
+            const createManualSnapshot = async () => {
+                const snap = await BackupDB.saveSnapshot(data, keepOnlyLatest);
+                let folderExtra = '';
+                if (localDirHandle) {
+                    const res = await syncToLocalDirectory(localDirHandle, data, keepOnlyLatest);
+                    if (res.success) folderExtra = ` y en carpeta "${localDirName}"`;
+                }
+                const all = await BackupDB.getAllSnapshots();
+                setSnapshots(all);
+                const info = {
+                    displayDate: snap.displayDate,
+                    timestamp: snap.createdAt
+                };
+                setLastBackupInfo(info);
+                localStorage.setItem('lingoTube_lastBackupInfo', JSON.stringify(info));
+                setBackupStatusMessage(`¡Copia creada con éxito${folderExtra}! (${snap.displayDate})`);
+                setTimeout(() => setBackupStatusMessage(''), 4500);
+            };
+
+            const restoreSnapshot = (snapshot) => {
+                if (!snapshot || !snapshot.data) return;
+                const confirmMsg = `¿Deseas restaurar la copia de seguridad del:\n\n📅 ${snapshot.displayDate}\n\nContiene: ${snapshot.stats?.classes || 0} clases completadas y ${snapshot.stats?.reviews || 0} repasos.\n\n⚠️ Tu progreso actual será reemplazado por los datos de esta copia.`;
+                if (window.confirm(confirmMsg)) {
+                    setData(snapshot.data);
+                    localStorage.setItem('lingoTubeData', JSON.stringify(snapshot.data));
+                    alert(`¡Progreso restaurado con éxito a la copia del ${snapshot.displayDate}!`);
+                }
+            };
+
+            const deleteSnapshot = async (id, displayDate) => {
+                if (window.confirm(`¿Eliminar la copia de seguridad del ${displayDate}?`)) {
+                    await BackupDB.deleteSnapshot(id);
+                    const all = await BackupDB.getAllSnapshots();
+                    setSnapshots(all);
+                }
+            };
+
+            const clearOldSnapshots = async () => {
+                if (window.confirm("¿Deseas borrar todas las copias anteriores y conservar únicamente la más reciente?")) {
+                    await BackupDB.clearOldSnapshots();
+                    if (localDirHandle) {
+                        try {
+                            for await (const [name] of localDirHandle.entries()) {
+                                if (name.startsWith('LingoTube_Respaldo_') && name.endsWith('.json')) {
+                                    await localDirHandle.removeEntry(name);
+                                }
+                            }
+                        } catch(e) {}
+                    }
+                    const all = await BackupDB.getAllSnapshots();
+                    setSnapshots(all);
+                    setBackupStatusMessage("Copias anteriores eliminadas. Se conservó la más reciente.");
+                    setTimeout(() => setBackupStatusMessage(''), 4000);
+                }
+            };
 
             const [courseData, setCourseData] = React.useState(() => {
                 const saved = localStorage.getItem('lingoTubeCourseData_v6');
@@ -371,11 +810,27 @@
 
             const exportData = () => {
                 const dataStr = localStorage.getItem('lingoTubeData');
-                const blob = new Blob([dataStr], { type: "application/json" });
+                const parsed = dataStr ? JSON.parse(dataStr) : data;
+                const now = new Date();
+                const clearDate = formatBackupDate(now);
+                const fileTs = getFileTimestamp(now);
+
+                const fullExport = {
+                    _lingoTubeBackupMeta: {
+                        fechaLegible: clearDate,
+                        timestampISO: now.toISOString(),
+                        descripcion: "Respaldo exportado de LingoTube",
+                        clasesCompletadas: (parsed.completed?.beginner?.length || 0) + (parsed.completed?.intermediate?.length || 0) + (parsed.completed?.advanced?.length || 0),
+                        repasosCompletados: (parsed.reviews?.beginner?.length || 0) + (parsed.reviews?.intermediate?.length || 0) + (parsed.reviews?.advanced?.length || 0)
+                    },
+                    ...parsed
+                };
+
+                const blob = new Blob([JSON.stringify(fullExport, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `LingoTube_Respaldo_${new Date().toISOString().split('T')[0]}.json`;
+                a.download = `LingoTube_Respaldo_${fileTs}.json`;
                 a.click();
                 URL.revokeObjectURL(url);
             };
@@ -384,20 +839,36 @@
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (event) => {
+                reader.onload = async (event) => {
                     try {
                         const importedData = JSON.parse(event.target.result);
-                        if (importedData && typeof importedData === 'object' && importedData.completed) {
-                            localStorage.setItem('lingoTubeData', JSON.stringify(importedData));
-                            window.location.reload(); 
+                        let cleanData = { ...importedData };
+                        let metaFecha = '';
+                        if (importedData._lingoTubeBackupMeta) {
+                            metaFecha = importedData._lingoTubeBackupMeta.fechaLegible;
+                            delete cleanData._lingoTubeBackupMeta;
+                        }
+                        if (cleanData && typeof cleanData === 'object' && cleanData.completed) {
+                            const promptText = metaFecha 
+                                ? `Este archivo tiene fecha de creación:\n📅 ${metaFecha}\n\n¿Deseas restaurar este respaldo ahora?` 
+                                : "¿Deseas restaurar este respaldo ahora?";
+                            if (window.confirm(promptText)) {
+                                setData(cleanData);
+                                localStorage.setItem('lingoTubeData', JSON.stringify(cleanData));
+                                await BackupDB.saveSnapshot(cleanData, keepOnlyLatest);
+                                const all = await BackupDB.getAllSnapshots();
+                                setSnapshots(all);
+                                alert("¡Respaldo importado y restaurado exitosamente!");
+                            }
                         } else {
                             alert("El archivo no parece ser un respaldo válido de LingoTube.");
                         }
                     } catch (err) {
-                        alert("Error al leer el archivo JSON.");
+                        alert("Error al leer el archivo JSON: " + err.message);
                     }
                 };
                 reader.readAsText(file);
+                e.target.value = '';
             };
 
             const syncFromServer = async () => {
@@ -422,7 +893,13 @@
                 else alert("No se encontraron los archivos .csv. Asegúrate de que estén subidos a GitHub.");
             };
 
-            return { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, exportData, importData, syncFromServer };
+            return { 
+                data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, 
+                courseData, updateCourseData, exportData, importData, syncFromServer,
+                keepOnlyLatest, setKeepOnlyLatest, snapshots, localDirName, selectLocalFolder, 
+                disconnectLocalFolder, createManualSnapshot, restoreSnapshot, deleteSnapshot, 
+                clearOldSnapshots, backupStatusMessage, lastBackupInfo
+            };
         }
 
         const getOffset = (index) => {
@@ -500,7 +977,13 @@
         };
 
         const App = () => {
-            const { data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, courseData, updateCourseData, exportData, importData, syncFromServer } = useAppStore();
+            const { 
+                data, toggleProgress, toggleBookmark, toggleRoutinePhase, saveNote, saveChunk, 
+                courseData, updateCourseData, exportData, importData, syncFromServer,
+                keepOnlyLatest, setKeepOnlyLatest, snapshots, localDirName, selectLocalFolder, 
+                disconnectLocalFolder, createManualSnapshot, restoreSnapshot, deleteSnapshot, 
+                clearOldSnapshots, backupStatusMessage, lastBackupInfo
+            } = useAppStore();
             const [currentTab, setCurrentTab] = React.useState('learn');
             const [currentLevel, setCurrentLevel] = React.useState(() => {
                 const isLevelDone = (lvl) => {
@@ -807,19 +1290,188 @@
                     
                     {/* BACKUP & RESTORE SECTION */}
                     <div className="bg-surface rounded-2xl p-5 mb-6 border-2 border-duogray shadow-lg">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="bg-duogreen/20 p-2 rounded-xl text-duogreen"><Icon name="Save" size={24} /></div>
-                            <h2 className="font-bold text-lg text-white">Copia de Seguridad</h2>
-                        </div>
-                        <p className="text-sm text-duotext mb-4">Guarda tu progreso en un archivo para no perderlo o para usarlo en otro dispositivo.</p>
-                        <div className="flex gap-3">
-                            <button onClick={exportData} className="flex-1 bg-duogray hover:bg-duogray/80 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md">
-                                <Icon name="Download" size={18} /> Exportar
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-duogreen/20 p-2.5 rounded-xl text-duogreen shadow-sm">
+                                    <Icon name="Save" size={24} />
+                                </div>
+                                <div>
+                                    <h2 className="font-bold text-lg text-white leading-tight">Copia de Seguridad</h2>
+                                    <p className="text-xs text-duotext">Automática y en local</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={createManualSnapshot}
+                                className="bg-duogray hover:bg-duogray/70 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-colors border border-white/10"
+                                title="Guardar punto de respaldo ahora mismo"
+                            >
+                                <Icon name="RotateCw" size={13} /> Guardar Ya
                             </button>
-                            <label className="flex-1 bg-duoblue hover:bg-duoblueDark text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-md">
-                                <Icon name="Upload" size={18} /> Importar
-                                <input type="file" accept=".json" className="hidden" onChange={importData} />
-                            </label>
+                        </div>
+
+                        {backupStatusMessage && (
+                            <div className="mb-4 bg-duogreen/20 border border-duogreen/40 text-duogreen text-xs font-bold p-2.5 rounded-xl flex items-center gap-2 animate-fade-in">
+                                <Icon name="CheckCircle" size={16} />
+                                <span>{backupStatusMessage}</span>
+                            </div>
+                        )}
+
+                        {/* TOGGLE: CONSERVAR SOLO LA ULTIMA COPIA */}
+                        <div className="bg-darker p-3.5 rounded-xl border border-duogray/60 mb-4 flex items-center justify-between cursor-pointer" onClick={() => setKeepOnlyLatest(!keepOnlyLatest)}>
+                            <div className="pr-3">
+                                <div className="text-sm font-bold text-white flex items-center gap-1.5">
+                                    <span>Conservar solo la última copia</span>
+                                </div>
+                                <div className="text-xs text-duotext mt-0.5 leading-snug">
+                                    {keepOnlyLatest 
+                                        ? "Sobrescribe y borra copias anteriores automáticamente al guardar." 
+                                        : "Mantiene un historial con fecha y hora clara de cada respaldo."}
+                                </div>
+                            </div>
+                            <div className={`w-12 h-6 flex items-center rounded-full p-1 duration-300 cursor-pointer shrink-0 ${keepOnlyLatest ? 'bg-duogreen' : 'bg-duogray'}`}>
+                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform duration-300 ${keepOnlyLatest ? 'translate-x-6' : ''}`}></div>
+                            </div>
+                        </div>
+
+                        {/* CARPETA DE PC (File System Access) */}
+                        <div className="bg-darker p-3.5 rounded-xl border border-duogray/60 mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold uppercase tracking-wider text-duotext flex items-center gap-1.5">
+                                    <Icon name="HardDrive" size={14} className="text-duoblue" /> Guardar en Carpeta de tu PC
+                                </span>
+                                {localDirName && (
+                                    <span className="text-[10px] font-bold bg-duogreen/20 text-duogreen px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <Icon name="Check" size={10} /> Activo
+                                    </span>
+                                )}
+                            </div>
+
+                            {localDirName ? (
+                                <div>
+                                    <p className="text-xs text-white/90 mb-2">
+                                        📁 Carpeta: <strong className="text-duoblue font-bold">{localDirName}</strong>
+                                    </p>
+                                    <p className="text-[11px] text-duotext mb-3">
+                                        {keepOnlyLatest 
+                                            ? "Se actualiza automáticamente el archivo LingoTube_Ultimo_Respaldo.json cada vez que avanzas."
+                                            : "Se guardan archivos automáticos con fecha y hora exacta en esta carpeta."}
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={selectLocalFolder}
+                                            className="flex-1 bg-surface hover:bg-duogray text-white text-xs font-bold py-2 rounded-lg transition-colors border border-duogray"
+                                        >
+                                            Cambiar Carpeta
+                                        </button>
+                                        <button 
+                                            onClick={disconnectLocalFolder}
+                                            className="px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold py-2 rounded-lg transition-colors border border-red-500/20"
+                                        >
+                                            Desvincular
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-xs text-duotext mb-3 leading-relaxed">
+                                        Puedes conectar una carpeta de tu disco local (ej. Documentos) para que la app guarde el archivo .json en segundo plano sin pedir descargas.
+                                    </p>
+                                    <button 
+                                        onClick={selectLocalFolder}
+                                        className="w-full bg-duoblue hover:bg-duoblueDark text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                    >
+                                        <Icon name="HardDrive" size={16} /> Vincular Carpeta de mi PC
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* LISTA DE PUNTOS DE RESTAURACIÓN */}
+                        <div className="mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-duotext flex items-center gap-1.5">
+                                    <Icon name="Clock" size={14} className="text-duogold" /> Puntos de Restauración
+                                </h3>
+                                {!keepOnlyLatest && snapshots.length > 1 && (
+                                    <button 
+                                        onClick={clearOldSnapshots}
+                                        className="text-[11px] text-red-400 hover:text-red-300 flex items-center gap-1 font-bold"
+                                        title="Eliminar copias viejas y dejar solo la más reciente"
+                                    >
+                                        <Icon name="Trash2" size={12} /> Borrar anteriores
+                                    </button>
+                                )}
+                            </div>
+
+                            {snapshots.length === 0 ? (
+                                <div className="bg-darker p-3 rounded-xl border border-duogray/40 text-center text-xs text-duotext py-4">
+                                    No hay copias previas aún. Se generará una automáticamente en cuanto avances.
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                                    {snapshots.map((snap, idx) => (
+                                        <div key={snap.id} className={`bg-darker p-3 rounded-xl border ${idx === 0 ? 'border-duogreen/40 bg-duogreen/5' : 'border-duogray/40'} flex items-center justify-between gap-2 shadow-sm`}>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    {idx === 0 && (
+                                                        <span className="text-[9px] bg-duogreen text-darker font-black px-1.5 py-0.2 rounded uppercase tracking-wider">
+                                                            Última
+                                                        </span>
+                                                    )}
+                                                    <span className="text-xs font-bold text-white truncate">
+                                                        📅 {snap.displayDate}
+                                                    </span>
+                                                </div>
+                                                <div className="text-[11px] text-duotext flex items-center gap-2">
+                                                    <span className="text-duogreen font-semibold">{snap.stats?.classes || 0} clases</span>
+                                                    <span>•</span>
+                                                    <span className="text-duogold font-semibold">{snap.stats?.reviews || 0} repasos</span>
+                                                    {(snap.stats?.notes > 0 || snap.stats?.chunks > 0) && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span className="text-duoblue">{(snap.stats.notes || 0) + (snap.stats.chunks || 0)} notas</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <button 
+                                                    onClick={() => restoreSnapshot(snap)}
+                                                    className="bg-duoblue hover:bg-duoblueDark text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors shadow-sm flex items-center gap-1"
+                                                    title="Restaurar esta copia de seguridad"
+                                                >
+                                                    <Icon name="RotateCcw" size={13} /> Restaurar
+                                                </button>
+                                                {!keepOnlyLatest && snapshots.length > 1 && (
+                                                    <button 
+                                                        onClick={() => deleteSnapshot(snap.id, snap.displayDate)}
+                                                        className="text-duotext hover:text-red-400 p-1.5 transition-colors"
+                                                        title="Eliminar esta copia"
+                                                    >
+                                                        <Icon name="Trash2" size={15} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* EXPORTAR E IMPORTAR MANUAL (ARCHIVO JSON) */}
+                        <div className="border-t border-duogray/40 pt-4">
+                            <span className="text-[11px] font-bold text-duotext uppercase tracking-wider block mb-2">
+                                Archivo descargable (.json)
+                            </span>
+                            <div className="flex gap-2">
+                                <button onClick={exportData} className="flex-1 bg-surface hover:bg-duogray text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-duogray shadow-sm">
+                                    <Icon name="Download" size={15} /> Descargar Archivo
+                                </button>
+                                <label className="flex-1 bg-surface hover:bg-duogray text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-duogray shadow-sm cursor-pointer">
+                                    <Icon name="Upload" size={15} /> Importar Archivo
+                                    <input type="file" accept=".json" className="hidden" onChange={importData} />
+                                </label>
+                            </div>
                         </div>
                     </div>
 
